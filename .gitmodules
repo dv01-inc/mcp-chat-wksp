@@ -1,3 +1,6 @@
 [submodule "apps/playwright-mcp"]
 	path = apps/playwright-mcp
 	url = https://github.com/microsoft/playwright-mcp.git
+[submodule "apps/apollo-mcp"]
+	path = apps/apollo-mcp
+	url = https://github.com/apollographql/apollo-mcp-server.git

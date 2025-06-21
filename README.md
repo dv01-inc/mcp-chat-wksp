@@ -1,266 +1,278 @@
-# MCP Client Chatbot
+# MCP Chat Workspace
 
-[![MCP Supported](https://img.shields.io/badge/MCP-Supported-00c853)](https://modelcontextprotocol.io/introduction)
-[![Discord](https://img.shields.io/discord/1374047276074537103?label=Discord&logo=discord&color=5865F2)](https://discord.gg/gCRu69Upnp)
+A full-stack Nx monorepo for Model Context Protocol (MCP) chat applications with browser automation capabilities.
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/cgoinglove/mcp-client-chatbot&env=BETTER_AUTH_SECRET&env=OPENAI_API_KEY&env=GOOGLE_GENERATIVE_AI_API_KEY&env=ANTHROPIC_API_KEY&envDescription=Learn+more+about+how+to+get+the+API+Keys+for+the+application&envLink=https://github.com/cgoinglove/mcp-client-chatbot/blob/main/.env.example&demo-title=MCP+Client+Chatbot&demo-description=An+Open-Source+MCP+Chatbot+Template+Built+With+Next.js+and+the+AI+SDK+by+Vercel.&products=[{"type":"integration","protocol":"storage","productSlug":"neon","integrationSlug":"neon"}])
+## Architecture
 
-Our goal is to create the best possible chatbot UX — focusing on the joy and intuitiveness users feel when calling and interacting with AI tools.
-
-See the experience in action in the [preview](#preview) below!
-
-> Built with [Vercel AI SDK](https://sdk.vercel.ai) and [Next.js](https://nextjs.org/), this app adopts modern patterns for building AI chat interfaces. It leverages the power of the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/introduction) to seamlessly integrate external tools into your chat experience.
-
-## Table of Contents
-
-- [MCP Client Chatbot](#mcp-client-chatbot)
-  - [Table of Contents](#table-of-contents)
-  - [Preview](#preview)
-    - [🧩 Browser Automation with Playwright MCP](#-browser-automation-with-playwright-mcp)
-    - [🎙️ Realtime Voice Assistant + MCP Tools](#️-realtime-voice-assistant--mcp-tools)
-    - [⚡️ Quick Tool Mentions (`@`) \& Presets](#️-quick-tool-mentions---presets)
-    - [🧭 Tool Choice Mode](#-tool-choice-mode)
-  - [Getting Started](#getting-started)
-    - [Quick Start (Docker Compose Version) 🐳](#quick-start-docker-compose-version-)
-    - [Quick Start (Local Version) 🚀](#quick-start-local-version-)
-    - [Environment Variables](#environment-variables)
-  - [📘 Guides](#-guides)
-      - [🔌 MCP Server Setup \& Tool Testing](#-mcp-server-setup--tool-testing)
-      - [🐳 Docker Hosting Guide](#-docker-hosting-guide)
-      - [▲ Vercel Hosting Guide](#-vercel-hosting-guide)
-      - [🎯 System Prompts \& Chat Customization](#-system-prompts--chat-customization)
-      - [🔐 OAuth Sign-In Setup](#-oauth-sign-in-setup)
-  - [💡 Tips](#-tips)
-      - [🧠 Agentic Chatbot with Project Instructions](#-agentic-chatbot-with-project-instructions)
-      - [💬 Temporary Chat Windows](#-temporary-chat-windows)
-  - [🗺️ Roadmap](#️-roadmap)
-  - [🙌 Contributing](#-contributing)
-  - [💬 Join Our Discord](#-join-our-discord)
-
----
-
-## Preview
-
-Get a feel for the UX — here's a quick look at what's possible.
-
-### 🧩 Browser Automation with Playwright MCP
-
-![playwright-preview](https://github.com/user-attachments/assets/53ec0069-aab4-47ff-b7c4-a8080a6a98ff)
-
-**Example:** Control a web browser using Microsoft's [playwright-mcp](https://github.com/microsoft/playwright-mcp) tool.
-
-- The LLM autonomously decides how to use tools from the MCP server, calling them multiple times to complete a multi-step task and return a final message.
-
-Sample prompt:
-
-```prompt
-Please go to GitHub and visit the cgoinglove/mcp-client-chatbot project.
-Then, click on the README.md file.
-After that, close the browser.
-Finally, tell me how to install the package.
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Next.js App   │────│  MCP Gateway    │────│ Playwright MCP  │
+│   (Frontend)    │    │ (Java/Python)   │    │    Server       │
+│   Port: 4200    │    │ Port: 8000/8002 │    │   Port: 8001    │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
 
-<br/>
+## Projects
 
-### 🎙️ Realtime Voice Assistant + MCP Tools
+### **Apps**
+- **`mcp-chat-app`** - Next.js frontend application with MCP integration
+- **`mcp-gateway`** - Python FastAPI service for authenticated MCP calls  
+- **`mcp-gateway-java`** - Java Spring Boot service with streamable HTTP MCP support
+- **`playwright-mcp`** - Microsoft's Playwright MCP server (git submodule)
 
+### **Technology Stack**
+- **Frontend**: Next.js 15, TypeScript, Tailwind CSS, Nx
+- **Backend**: 
+  - Python FastAPI, Pydantic AI, uvicorn
+  - Java Spring Boot, Spring AI MCP Client, Gradle
+- **Browser Automation**: Playwright MCP Server
+- **Database**: PostgreSQL (via Docker)
+- **Authentication**: JWT tokens, Better Auth
+- **Monorepo**: Nx with TypeScript, Python, and Java support
 
-<p align="center">
-  <video src="https://github.com/user-attachments/assets/e2657b8c-ce0b-40dd-80b6-755324024973" width="100%" />
-</p>
+## Quick Start
 
+### Prerequisites
+- Node.js 18+
+- Python 3.9+
+- Java 21+ (for Java MCP Gateway)
+- Docker (for PostgreSQL)
+- pnpm (package manager)
 
+### Setup
 
+1. **Clone and install dependencies**
+   ```bash
+   git clone <repository-url>
+   cd mcp-chat-workspace
+   pnpm install
+   ```
 
-This demo showcases a **realtime voice-based chatbot assistant** built with OpenAI's new Realtime API — now extended with full **MCP tool integration**.
-Talk to the assistant naturally, and watch it execute tools in real time.
+2. **Initialize git submodules**
+   ```bash
+   git submodule update --init --recursive
+   ```
 
-### ⚡️ Quick Tool Mentions (`@`) & Presets
+3. **Start PostgreSQL database**
+   ```bash
+   docker run --name mcp-pg \
+     -e POSTGRES_PASSWORD=mcp_password \
+     -e POSTGRES_USER=mcp_user \
+     -e POSTGRES_DB=mcp_chat_db \
+     -p 5432:5432 -d postgres
+   ```
 
-![tool-mention](https://github.com/user-attachments/assets/bd47b175-320f-4c38-bc2f-be887c46178e)
+4. **Set up database schema**
+   ```bash
+   npx nx run mcp-chat-app:db:push
+   ```
 
-Quickly call any registered MCP tool during chat by typing `@toolname`.
-No need to memorize — just type `@` and select from the list!
+### Development
 
-You can also create **tool presets** by selecting only the MCP servers or tools you want.
-Switch between presets instantly with a click — perfect for organizing tools by task or workflow.
+**Option 1: Start all services at once (Python Gateway)**
+```bash
+# Start all services simultaneously
+npx nx run-many --target=serve --projects=mcp-chat-app,mcp-gateway,playwright-mcp --parallel
+```
 
-### 🧭 Tool Choice Mode
+**Option 2: Start all services at once (Java Gateway)**
+```bash
+# Start all services simultaneously with Java gateway
+npx nx run-many --target=serve --projects=mcp-chat-app,mcp-gateway-java,playwright-mcp --parallel
+```
 
-<img width="1161" alt="tool-mode" src="https://github.com/user-attachments/assets/0988f8dd-8a37-4adf-84da-79c083917af9" />
+**Option 3: Start services in separate terminals**
+```bash
+# Terminal 1: Next.js App
+npx nx serve mcp-chat-app
 
+# Terminal 2: MCP Gateway (choose one)
+npx nx serve mcp-gateway          # Python gateway (port 8000)
+npx nx serve mcp-gateway-java     # Java gateway (port 8002)
 
-Control how tools are used in each chat with **Tool Choice Mode** — switch anytime with `⌘P`.
+# Terminal 3: Playwright MCP Server
+npx nx serve playwright-mcp
+```
 
-- **Auto:** The model automatically calls tools when needed.
-- **Manual:** The model will ask for your permission before calling a tool.
-- **None:** Tool usage is disabled completely.
+### Access Points
 
-This lets you flexibly choose between autonomous, guided, or tool-free interaction depending on the situation.
+- **Frontend**: http://localhost:4200
+- **MCP Gateway API**: 
+  - Python: http://localhost:8000
+  - Java: http://localhost:8002
+- **Playwright MCP Server**: http://localhost:8001
 
-<br/>
+### Test Endpoints
 
-…and there's even more waiting for you.
-Try it out and see what else it can do!
-
-<br/>
-
-## Getting Started
-
-> This project uses [pnpm](https://pnpm.io/) as the recommended package manager.
+After starting all services, you can test the connections:
 
 ```bash
-# If you don't have pnpm:
-npm install -g pnpm
+# Test MCP Gateway health (choose one)
+curl http://localhost:8000/health      # Python gateway
+curl http://localhost:8002/api/health  # Java gateway
+
+# Test Playwright MCP Server connectivity (choose one)
+curl http://localhost:8000/test/playwright      # Python gateway
+curl http://localhost:8002/api/test/playwright  # Java gateway
+
+# Test actual MCP protocol communication (choose one)
+curl -X POST http://localhost:8000/test/mcp      # Python gateway
+curl -X POST http://localhost:8002/api/test/mcp  # Java gateway
+
+# Test authenticated MCP query (using mock token in development)
+# Python gateway:
+curl -X POST http://localhost:8000/mcp/query \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer mock-token" \
+  -d '{
+    "prompt": "What browser automation tools are available?",
+    "server_url": "http://localhost:8001/mcp",
+    "model_name": "openai:gpt-4.1"
+  }'
+
+# Java gateway:
+curl -X POST http://localhost:8002/api/mcp/query \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer mock-token" \
+  -d '{
+    "prompt": "What browser automation tools are available?",
+    "serverUrl": "http://localhost:8001/mcp",
+    "modelName": "openai:gpt-4.1"
+  }'
 ```
 
-### Quick Start (Docker Compose Version) 🐳
+**Expected responses:**
+- `/health` → `{"status": "healthy", "service": "mcp-gateway"}`
+- `/test/playwright` → Connection status with SSE stream confirmation
+- `/test/mcp` → MCP protocol test results
+- `/mcp/query` → Authenticated MCP query response
 
-```bash
-# 1. Install dependencies
-pnpm i
-
-# 2. Enter only the LLM PROVIDER API key(s) you want to use in the .env file at the project root.
-# Example: The app works with just OPENAI_API_KEY filled in.
-# (The .env file is automatically created when you run pnpm i.)
-
-# 3. Build and start all services (including PostgreSQL) with Docker Compose
-pnpm docker-compose:up
-
-```
-
-### Quick Start (Local Version) 🚀
-
-```bash
-# 1. Install dependencies
-pnpm i
-
-# 2. Create the environment variable file and fill in your .env values
-pnpm initial:env # This runs automatically in postinstall, so you can usually skip it.
-
-# 3. (Optional) If you already have PostgreSQL running and .env is configured, skip this step
-pnpm docker:pg
-
-# 4. Run database migrations
-pnpm db:migrate
-
-# 5. Start the development server
-pnpm dev
-
-# 6. (Optional) Build & start for local production-like testing
-pnpm build:local && pnpm start
-# Use build:local for local start to ensure correct cookie settings
-```
-
-Open [http://localhost:3000](http://localhost:3000) in your browser to get started.
-
-<br/>
+## Configuration
 
 ### Environment Variables
 
-The `pnpm i` command generates a `.env` file. Add your API keys there.
+**Next.js App** (`apps/mcp-chat-app/.env`):
+- Database connection (PostgreSQL)
+- LLM provider API keys (OpenAI, Anthropic, etc.)
+- Authentication secrets
 
-```dotenv
-# === LLM Provider API Keys ===
-# You only need to enter the keys for the providers you plan to use
-GOOGLE_GENERATIVE_AI_API_KEY=****
-OPENAI_API_KEY=****
-XAI_API_KEY=****
-ANTHROPIC_API_KEY=****
-OPENROUTER_API_KEY=****
-OLLAMA_BASE_URL=http://localhost:11434/api
+**MCP Gateway** (`apps/mcp-gateway/.env`):
+- JWT authentication configuration
+- LLM provider API keys  
+- MCP server endpoints
 
+## Available Commands
 
-# Secret for Better Auth (generate with: npx @better-auth/cli@latest secret)
-BETTER_AUTH_SECRET=****
+### Workspace Level
+```bash
+# Development - Start all services (Python gateway)
+npx nx run-many --target=serve --projects=mcp-chat-app,mcp-gateway,playwright-mcp --parallel
 
-# (Optional)
-# URL for Better Auth (the URL you access the app from)
-BETTER_AUTH_URL=
+# Development - Start all services (Java gateway)
+npx nx run-many --target=serve --projects=mcp-chat-app,mcp-gateway-java,playwright-mcp --parallel
 
-# === Database ===
-# If you don't have PostgreSQL running locally, start it with: pnpm docker:pg
-POSTGRES_URL=postgres://your_username:your_password@localhost:5432/your_database_name
+# Development - Individual services
+npx nx serve mcp-chat-app        # Start Next.js app
+npx nx serve mcp-gateway         # Start Python MCP gateway
+npx nx serve mcp-gateway-java    # Start Java MCP gateway
+npx nx serve playwright-mcp      # Start Playwright MCP server
 
-# Whether to use file-based MCP config (default: false)
-FILE_BASED_MCP_CONFIG=false
+# Testing & Quality
+npx nx run-many --target=test    # Run all tests
+npx nx run-many --target=lint    # Lint all projects
+npx nx run-many --target=format  # Format all projects (where available)
+npx nx affected --target=test    # Run tests for affected projects only
 
-# (Optional)
-# === OAuth Settings ===
-# Fill in these values only if you want to enable Google/GitHub login
-GOOGLE_CLIENT_ID=
-GOOGLE_CLIENT_SECRET=
-GITHUB_CLIENT_ID=
-GITHUB_CLIENT_SECRET=
+# Building
+npx nx run-many --target=build   # Build all projects
+npx nx build mcp-chat-app        # Build Next.js app
+npx nx build playwright-mcp      # Build Playwright MCP server
 ```
 
-<br/>
+### Project Specific
+```bash
+# Next.js App
+npx nx serve mcp-chat-app              # Start dev server
+npx nx build mcp-chat-app              # Build for production
+npx nx test mcp-chat-app               # Run tests
+npx nx run mcp-chat-app:db:push        # Push database schema
 
-## 📘 Guides
+# MCP Gateway (Python)
+npx nx serve mcp-gateway               # Start FastAPI server
+npx nx test mcp-gateway                # Run Python tests
+npx nx run mcp-gateway:sync            # Install Python dependencies
 
-Step-by-step setup guides for running and configuring MCP Client Chatbot.
+# MCP Gateway (Java)
+npx nx serve mcp-gateway-java          # Start Spring Boot server
+npx nx test mcp-gateway-java           # Run Java tests
+npx nx build mcp-gateway-java          # Build JAR file
 
+# Playwright MCP
+npx nx serve playwright-mcp            # Start MCP server
+npx nx build playwright-mcp            # Build TypeScript
+npx nx test playwright-mcp             # Run Playwright tests
+```
 
-#### [🔌 MCP Server Setup & Tool Testing](./docs/tips-guides/mcp-server-setup-and-tool-testing.md)
+## Development Workflow
 
-- How to add and configure MCP servers in your environment
+1. **Start the database** (Docker PostgreSQL)
+2. **Start all services**: `npx nx run-many --target=serve --projects=mcp-chat-app,mcp-gateway,playwright-mcp --parallel`
+3. **Test the connections** using the test endpoints above
+4. **Access the frontend** at http://localhost:4200
+5. **Authenticate** with JWT tokens (mock tokens in development)
+6. **Connect to MCP servers** through the gateway
+7. **Use browser automation** via Playwright MCP tools
 
-#### [🐳 Docker Hosting Guide](./docs/tips-guides/docker.md)
+### Pro Tips
+- Use `npx nx affected --target=test` to only test changed projects
+- Use `npx nx graph` to visualize project dependencies
+- Use `npx nx reset` to clear Nx cache if needed
+- Use the test endpoints to verify all services are communicating properly
 
-- How to self-host the chatbot using Docker, including environment configuration.
+## MCP Integration
 
-#### [▲ Vercel Hosting Guide](./docs/tips-guides/vercel.md)
+The architecture provides:
 
-- Deploy the chatbot to Vercel with simple setup steps for production use.
-  
-#### [🎯 System Prompts & Chat Customization](./docs/tips-guides/system-prompts-and-customization.md)
+- **Authenticated Access**: All MCP calls go through the gateway with JWT auth
+- **User Isolation**: Each user gets isolated MCP client sessions
+- **Browser Automation**: Full Playwright capabilities via MCP protocol
+- **Extensible**: Easy to add more MCP servers as git submodules
 
-- Personalize your chatbot experience with custom system prompts, user preferences, and MCP tool instructions
+## Git Submodules
 
-#### [🔐 OAuth Sign-In Setup](./docs/tips-guides/oauth.md)
+This monorepo uses git submodules for external MCP servers:
 
-- Configure Google and GitHub OAuth for secure user login support.
+```bash
+# Update submodules
+git submodule update --remote
 
-#### [Adding openAI like providers](docs/tips-guides/adding-openAI-like-providers.md)
-- Adding openAI like ai providers
-<br/>
+# Add new MCP server submodule
+git submodule add <repo-url> apps/<server-name>
+```
 
-## 💡 Tips
+## Project Structure
 
-Advanced use cases and extra capabilities that enhance your chatbot experience.
+```
+mcp-chat-workspace/
+├── apps/
+│   ├── mcp-chat-app/          # Next.js frontend
+│   ├── mcp-gateway/           # Python MCP gateway
+│   └── playwright-mcp/        # Playwright MCP server (submodule)
+├── docs/                      # Documentation
+├── docker/                    # Docker configurations
+├── nx.json                    # Nx workspace configuration
+├── package.json               # Workspace dependencies
+└── tsconfig.base.json         # Base TypeScript config
+```
 
-#### [🧠 Agentic Chatbot with Project Instructions](./docs/tips-guides/project_with_mcp.md)
+## Contributing
 
-- Use MCP servers and structured project instructions to build a custom assistant that helps with specific tasks.
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Run tests and linting
+5. Submit a pull request
 
-#### [💬 Temporary Chat Windows](./docs/tips-guides/temporary_chat.md)
+## License
 
-- Open lightweight popup chats for quick side questions or testing — separate from your main thread.
-
-## 🗺️ Roadmap
-
-Planned features coming soon to MCP Client Chatbot:
-
-- [ ] **MCP-integrated LLM Workflow**
-- [ ] **File Attach & Image Generation**
-- [ ] **Collaborative Document Editing** (like OpenAI Canvas: user & assistant co-editing)
-- [ ] **RAG (Retrieval-Augmented Generation)**
-- [ ] **Web-based Compute** (with [WebContainers](https://webcontainers.io) integration)
-
-💡 If you have suggestions or need specific features, please create an [issue](https://github.com/cgoinglove/mcp-client-chatbot/issues)!
-
-## 🙌 Contributing
-
-We welcome all contributions! Bug reports, feature ideas, code improvements — everything helps us build the best local AI assistant.
-
-**For detailed contribution guidelines**, please see our [Contributing Guide](./CONTRIBUTING.md).
-
-**Language Translations:** Help us make the chatbot accessible to more users by adding new language translations. See [language.md](./messages/language.md) for instructions on how to contribute translations.
-
-Let's build it together 🚀
-
-## 💬 Join Our Discord
-
-[![Discord](https://img.shields.io/discord/1374047276074537103?label=Discord&logo=discord&color=5865F2)](https://discord.gg/gCRu69Upnp)
-
-Connect with the community, ask questions, and get support on our official Discord server!
+MIT License - see individual project licenses for details.

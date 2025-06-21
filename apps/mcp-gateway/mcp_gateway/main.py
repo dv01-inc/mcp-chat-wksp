@@ -76,6 +76,128 @@ async def health():
     return {"status": "healthy", "service": "mcp-gateway"}
 
 
+@app.get("/test/apollo")
+async def test_apollo_connection():
+    """Test connection to Apollo MCP server."""
+    try:
+        import httpx
+        
+        # Test the /mcp endpoint 
+        async with httpx.AsyncClient() as client:
+            response = await client.get("http://localhost:5000/mcp", timeout=5.0)
+            
+            # Also test basic connectivity
+            try:
+                health_response = await client.get("http://localhost:5000", timeout=2.0, follow_redirects=False)
+                health_status = health_response.status_code
+            except Exception as health_error:
+                health_status = "error"
+            
+        return {
+            "status": "success",
+            "apollo_server": "reachable",
+            "mcp_endpoint_status": response.status_code,
+            "mcp_response": response.text[:50] if hasattr(response, 'text') else "N/A",
+            "health_endpoint_status": health_status,
+            "message": "Apollo MCP server is reachable"
+        }
+        
+    except Exception as e:
+        return {
+            "status": "error", 
+            "apollo_server": "unreachable",
+            "error": str(e),
+            "message": "Failed to connect to Apollo MCP server"
+        }
+
+
+@app.get("/test/playwright")
+async def test_playwright_connection():
+    """Test connection to Playwright MCP server."""
+    try:
+        import httpx
+        
+        # Test the /mcp endpoint (should return 400 "Invalid request" but prove it's reachable)
+        async with httpx.AsyncClient() as client:
+            response = await client.get("http://localhost:8001/mcp", timeout=5.0)
+            
+            # Also test basic connectivity
+            try:
+                sse_response = await client.get("http://localhost:8001", timeout=2.0, follow_redirects=False)
+                sse_status = sse_response.status_code
+                is_sse = "text/event-stream" in sse_response.headers.get("content-type", "")
+            except Exception as sse_error:
+                sse_status = "error"
+                is_sse = False
+            
+        return {
+            "status": "success",
+            "playwright_server": "reachable",
+            "mcp_endpoint_status": response.status_code,
+            "mcp_response": response.text[:50] if hasattr(response, 'text') else "N/A",
+            "sse_endpoint_status": sse_status,
+            "has_sse_stream": is_sse,
+            "message": "Playwright MCP server is reachable (400 on /mcp is expected without proper MCP request)"
+        }
+        
+    except Exception as e:
+        return {
+            "status": "error", 
+            "playwright_server": "unreachable",
+            "error": str(e),
+            "message": "Failed to connect to Playwright MCP server"
+        }
+
+
+@app.get("/test/env")
+async def test_environment():
+    """Test if environment variables are accessible."""
+    import os
+    
+    openai_key = os.getenv("OPENAI_API_KEY")
+    anthropic_key = os.getenv("ANTHROPIC_API_KEY")
+    
+    return {
+        "openai_key_present": bool(openai_key),
+        "openai_key_prefix": openai_key[:10] if openai_key else None,
+        "anthropic_key_present": bool(anthropic_key),
+        "environment": os.getenv("ENVIRONMENT", "unknown")
+    }
+
+
+@app.post("/test/mcp")
+async def test_mcp_query():
+    """Test actual MCP query to Playwright server."""
+    try:
+        # Test if we can create an MCP client and run a simple query
+        from .mcp_client import MCPClient
+        import traceback
+        
+        client = MCPClient(
+            model_name="openai:gpt-4.1",
+            mcp_server_url="http://localhost:8001/sse"
+        )
+        
+        # Try a simple query
+        result = await client.run("List available tools")
+        
+        return {
+            "status": "success",
+            "message": "MCP query successful",
+            "result_preview": str(result)[:200] + "..." if len(str(result)) > 200 else str(result)
+        }
+        
+    except Exception as e:
+        # Get full traceback for debugging
+        tb = traceback.format_exc()
+        return {
+            "status": "error",
+            "message": "MCP query failed",
+            "error": str(e),
+            "traceback": tb[-1000:] if len(tb) > 1000 else tb  # Last 1000 chars
+        }
+
+
 @app.post("/mcp/query", response_model=MCPResponse)
 async def mcp_query(
     request: MCPRequest,
@@ -111,9 +233,20 @@ async def mcp_query(
         # Execute the query
         result = await client.run(request.prompt, headers=headers)
         
+        usage_info = None
+        if hasattr(result, 'usage'):
+            try:
+                usage_obj = result.usage()
+                usage_info = {
+                    "requests": usage_obj.requests if hasattr(usage_obj, 'requests') else None,
+                    "total_tokens": usage_obj.total_tokens if hasattr(usage_obj, 'total_tokens') else None,
+                }
+            except:
+                usage_info = None
+        
         return MCPResponse(
             result=str(result),
-            usage=getattr(result, 'usage', None),
+            usage=usage_info,
             error=None
         )
         
@@ -156,9 +289,20 @@ async def mcp_chat(
         # Execute the chat
         result = await client.chat(request.prompt, headers=headers)
         
+        usage_info = None
+        if hasattr(result, 'usage'):
+            try:
+                usage_obj = result.usage()
+                usage_info = {
+                    "requests": usage_obj.requests if hasattr(usage_obj, 'requests') else None,
+                    "total_tokens": usage_obj.total_tokens if hasattr(usage_obj, 'total_tokens') else None,
+                }
+            except:
+                usage_info = None
+        
         return MCPResponse(
             result=str(result),
-            usage=getattr(result, 'usage', None),
+            usage=usage_info,
             error=None
         )
         
