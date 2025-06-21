@@ -1,7 +1,7 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
-/node_modules
+node_modules
 /.pnp
 .pnp.*
 .yarn/*
@@ -11,14 +11,20 @@
 !.yarn/versions
 
 # testing
-/coverage
+coverage
+**/coverage
 
 # next.js
-/.next/
-/out/
+.next/
+out/
+**/**.next/
+**/out/
 
 # production
-/build
+build
+dist
+**/build
+**/dist
 
 # misc
 .DS_Store
@@ -35,6 +41,9 @@ yarn-error.log*
 .env
 .env.*
 !.env.example
+**/.env
+**/.env.*
+!**/.env.example
 
 # vercel
 .vercel
@@ -43,6 +52,14 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .local-cache
+
+# Nx
+.nx/cache
+.nx/workspace-data
+
+# Nx generated files
+project-graph.html
+static/
 
 # memory-bank
 /memory-bank
@@ -54,3 +71,12 @@ local-data
 *.ignore
 .mcp-config.json
 openai-compatible.config.ts
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+Thumbs.db

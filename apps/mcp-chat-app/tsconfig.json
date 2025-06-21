@@ -1,7 +1,12 @@
 {
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "target": "ES2017",
-    "lib": ["dom", "dom.iterable", "esnext"],
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
@@ -25,14 +30,29 @@
         "name": "next"
       }
     ],
+    "baseUrl": ".",
     "paths": {
-      "ui/*": ["./src/components/ui/*"],
-      "auth/*": ["./src/lib/auth/*"],
-      "app-types/*": ["./src/types/*"],
-      "logger": ["./src/lib/logger.ts"],
-      "lib/*": ["./src/lib/*"],
-      "load-env": ["./src/lib/load-env.ts"],
-      "@/*": ["./src/*"]
+      "@/*": [
+        "src/*"
+      ],
+      "app-types/*": [
+        "src/types/*"
+      ],
+      "auth/*": [
+        "src/lib/auth/*"
+      ],
+      "lib/*": [
+        "src/lib/*"
+      ],
+      "load-env": [
+        "src/lib/load-env.ts"
+      ],
+      "logger": [
+        "src/lib/logger.ts"
+      ],
+      "ui/*": [
+        "src/components/ui/*"
+      ]
     }
   },
   "include": [
@@ -45,5 +65,7 @@
     "vitest.config.ts",
     "drizzle.config.ts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules"
+  ]
 }
