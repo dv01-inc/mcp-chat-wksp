@@ -5,6 +5,7 @@ import type {
   VercelAIMcpTool,
 } from "app-types/mcp";
 import { createMCPClient, type MCPClient } from "./create-mcp-client";
+import { createGatewayMCPClient, type GatewayMCPClient } from "./gateway-mcp-client";
 import { Locker } from "lib/utils";
 import { safe } from "ts-safe";
 import { McpServerSchema } from "lib/db/pg/schema.pg";
@@ -27,11 +28,13 @@ export interface MCPConfigStorage {
   get(id: string): Promise<McpServerSelect | null>;
 }
 
+type AnyMCPClient = MCPClient | GatewayMCPClient;
+
 export class MCPClientsManager {
   protected clients = new Map<
     string,
     {
-      client: MCPClient;
+      client: AnyMCPClient;
       name: string;
     }
   >();
@@ -41,6 +44,7 @@ export class MCPClientsManager {
   constructor(
     private storage?: MCPConfigStorage,
     private autoDisconnectSeconds: number = 60 * 30, // 30 minutes
+    private useGateway: boolean = true, // Default to using gateway
   ) {
     process.on("SIGINT", this.cleanup.bind(this));
     process.on("SIGTERM", this.cleanup.bind(this));
@@ -92,9 +96,17 @@ export class MCPClientsManager {
       const prevClient = this.clients.get(id)!;
       void prevClient.client.disconnect();
     }
-    const client = createMCPClient(name, serverConfig, {
-      autoDisconnectSeconds: this.autoDisconnectSeconds,
-    });
+    
+    const client = this.useGateway 
+      ? createGatewayMCPClient(name, serverConfig, {
+          autoDisconnectSeconds: this.autoDisconnectSeconds,
+          gatewayUrl: process.env.NEXT_PUBLIC_MCP_GATEWAY_URL || 'http://localhost:8002/api',
+          authToken: process.env.NEXT_PUBLIC_MCP_AUTH_TOKEN || 'mock-token',
+        })
+      : createMCPClient(name, serverConfig, {
+          autoDisconnectSeconds: this.autoDisconnectSeconds,
+        });
+    
     this.clients.set(id, { client, name });
     return client.connect();
   }
@@ -168,6 +180,7 @@ export class MCPClientsManager {
 export function createMCPClientsManager(
   storage?: MCPConfigStorage,
   autoDisconnectSeconds: number = 60 * 30, // 30 minutes
+  useGateway: boolean = true, // Default to using gateway
 ): MCPClientsManager {
-  return new MCPClientsManager(storage, autoDisconnectSeconds);
+  return new MCPClientsManager(storage, autoDisconnectSeconds, useGateway);
 }

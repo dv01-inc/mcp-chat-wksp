@@ -129,6 +129,14 @@ npx nx serve apollo-mcp
 
 After starting all services, you can test the connections:
 
+#### **Gateway Integration Test**
+```bash
+# Run comprehensive integration test
+./test-gateway-simple.sh
+
+# Or test individual endpoints:
+```
+
 ```bash
 # Test MCP Gateway health (choose one)
 curl http://localhost:8000/health      # Python gateway
@@ -168,11 +176,26 @@ curl -X POST http://localhost:8002/api/mcp/query \
   }'
 ```
 
+#### **Chat App Integration Test**
+```bash
+# Test chat app's gateway integration (requires chat app to be running)
+curl http://localhost:4200/api/test/gateway
+
+# Test specific MCP query through chat app
+curl -X POST http://localhost:4200/api/test/gateway \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "Who are the astronauts currently in space?",
+    "serverUrl": "http://localhost:5000/mcp"
+  }'
+```
+
 **Expected responses:**
-- `/health` → `{"status": "healthy", "service": "mcp-gateway"}`
-- `/test/playwright` → Connection status with SSE stream confirmation
-- `/test/mcp` → MCP protocol test results
-- `/mcp/query` → Authenticated MCP query response
+- `/health` → `{"status": "healthy", "service": "mcp-gateway-java"}`
+- `/test/apollo` → Apollo MCP server connection status
+- `/test/playwright` → Playwright MCP server connection status  
+- `/mcp/query` → Authenticated MCP query response with mock data
+- Chat app `/test/gateway` → Full integration test results
 
 ## Configuration
 
@@ -187,6 +210,11 @@ curl -X POST http://localhost:8002/api/mcp/query \
 - JWT authentication configuration
 - LLM provider API keys  
 - MCP server endpoints
+
+**Chat App Gateway Integration** (`apps/mcp-chat-app/.env`):
+- `NEXT_PUBLIC_USE_MCP_GATEWAY=true` - Enable gateway integration
+- `NEXT_PUBLIC_MCP_GATEWAY_URL=http://localhost:8002/api` - Gateway URL  
+- `NEXT_PUBLIC_MCP_AUTH_TOKEN=mock-token` - Authentication token
 
 ## Available Commands
 

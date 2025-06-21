@@ -15,7 +15,11 @@ if (!globalThis.__mcpClientsManager__) {
   const storage = FILE_BASED_MCP_CONFIG
     ? createFileBasedMCPConfigsStorage()
     : createDbBasedMCPConfigsStorage();
-  globalThis.__mcpClientsManager__ = createMCPClientsManager(storage);
+  
+  // Use gateway by default, unless explicitly disabled
+  const useGateway = process.env.NEXT_PUBLIC_USE_MCP_GATEWAY !== 'false';
+  
+  globalThis.__mcpClientsManager__ = createMCPClientsManager(storage, 60 * 30, useGateway);
 }
 
 export const initMCPManager = async () => {
