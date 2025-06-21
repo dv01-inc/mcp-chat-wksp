@@ -16,12 +16,17 @@
     "lint": "nx run-many --target=lint",
     "format": "nx run-many --target=format",
     "check-types": "nx run-many --target=check-types",
+    "mcp-gateway:serve": "nx run mcp-gateway:serve",
+    "mcp-gateway:test": "nx run mcp-gateway:test",
+    "playwright-mcp:build": "nx run playwright-mcp:build",
+    "playwright-mcp:serve": "nx run playwright-mcp:mcp-server",
     "prepare": "husky"
   },
   "devDependencies": {
     "@nx/js": "21.2.1",
     "@nx/next": "21.2.1",
     "@nx/workspace": "21.2.1",
+    "@nxlv/python": "^21.0.3",
     "husky": "^9.1.7",
     "lint-staged": "^16.1.0",
     "nx": "21.2.1",

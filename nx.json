@@ -28,12 +28,24 @@
     ],
     "sharedGlobals": []
   },
+  "plugins": [
+    {
+      "plugin": "@nxlv/python",
+      "options": {
+        "packageManager": "uv"
+      }
+    }
+  ],
   "generators": {
     "@nx/next": {
       "application": {
         "style": "css",
         "linter": "eslint"
       }
+    },
+    "@nxlv/python:uv-project": {
+      "linter": "ruff",
+      "unitTestRunner": "pytest"
     }
   }
 }

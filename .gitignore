@@ -80,3 +80,7 @@ openai-compatible.config.ts
 
 # OS
 Thumbs.db
+
+# Submodule build outputs
+apps/playwright-mcp/lib/
+apps/playwright-mcp/node_modules/
