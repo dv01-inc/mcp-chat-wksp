@@ -5,11 +5,17 @@ A full-stack Nx monorepo for Model Context Protocol (MCP) chat applications with
 ## Architecture
 
 ```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Next.js App   │────│  MCP Gateway    │────│ Playwright MCP  │
-│   (Frontend)    │    │ (Java/Python)   │    │    Server       │
-│   Port: 4200    │    │ Port: 8000/8002 │    │   Port: 8001    │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
+                                    ┌─────────────────┐
+                              ┌─────│ Playwright MCP  │
+                              │     │    Server       │
+                              │     │   Port: 8001    │
+┌─────────────────┐    ┌─────────────────┐──┘    
+│   Next.js App   │────│  MCP Gateway    │       
+│   (Frontend)    │    │ (Java/Python)   │       ┌─────────────────┐
+│   Port: 4200    │    │ Port: 8000/8002 │───────│  Apollo MCP     │
+└─────────────────┘    └─────────────────┘       │   Server        │
+                                                 │  Port: 5000     │
+                                                 └─────────────────┘
 ```
 
 ## Projects
@@ -19,6 +25,7 @@ A full-stack Nx monorepo for Model Context Protocol (MCP) chat applications with
 - **`mcp-gateway`** - Python FastAPI service for authenticated MCP calls  
 - **`mcp-gateway-java`** - Java Spring Boot service with streamable HTTP MCP support
 - **`playwright-mcp`** - Microsoft's Playwright MCP server (git submodule)
+- **`apollo-mcp`** - Apollo GraphQL MCP server for space data APIs (git submodule)
 
 ### **Technology Stack**
 - **Frontend**: Next.js 15, TypeScript, Tailwind CSS, Nx
@@ -26,9 +33,10 @@ A full-stack Nx monorepo for Model Context Protocol (MCP) chat applications with
   - Python FastAPI, Pydantic AI, uvicorn
   - Java Spring Boot, Spring AI MCP Client, Gradle
 - **Browser Automation**: Playwright MCP Server
+- **GraphQL APIs**: Apollo MCP Server with Space data
 - **Database**: PostgreSQL (via Docker)
 - **Authentication**: JWT tokens, Better Auth
-- **Monorepo**: Nx with TypeScript, Python, and Java support
+- **Monorepo**: Nx with TypeScript, Python, Java, and Rust support
 
 ## Quick Start
 
@@ -36,6 +44,8 @@ A full-stack Nx monorepo for Model Context Protocol (MCP) chat applications with
 - Node.js 18+
 - Python 3.9+
 - Java 21+ (for Java MCP Gateway)
+- Rust (for Apollo MCP Server)
+- Apollo CLI tools (Rover CLI, Apollo MCP Server)
 - Docker (for PostgreSQL)
 - pnpm (package manager)
 
@@ -53,7 +63,16 @@ A full-stack Nx monorepo for Model Context Protocol (MCP) chat applications with
    git submodule update --init --recursive
    ```
 
-3. **Start PostgreSQL database**
+3. **Install Apollo CLI tools**
+   ```bash
+   # Install Rover CLI
+   curl -sSL https://rover.apollo.dev/nix/latest | sh
+   
+   # Install Apollo MCP Server
+   curl -sSL https://mcp.apollo.dev/download/nix/latest | sh
+   ```
+
+4. **Start PostgreSQL database**
    ```bash
    docker run --name mcp-pg \
      -e POSTGRES_PASSWORD=mcp_password \
@@ -62,7 +81,7 @@ A full-stack Nx monorepo for Model Context Protocol (MCP) chat applications with
      -p 5432:5432 -d postgres
    ```
 
-4. **Set up database schema**
+5. **Set up database schema**
    ```bash
    npx nx run mcp-chat-app:db:push
    ```
@@ -72,13 +91,13 @@ A full-stack Nx monorepo for Model Context Protocol (MCP) chat applications with
 **Option 1: Start all services at once (Python Gateway)**
 ```bash
 # Start all services simultaneously
-npx nx run-many --target=serve --projects=mcp-chat-app,mcp-gateway,playwright-mcp --parallel
+npx nx run-many --target=serve --projects=mcp-chat-app,mcp-gateway,playwright-mcp,apollo-mcp --parallel
 ```
 
 **Option 2: Start all services at once (Java Gateway)**
 ```bash
 # Start all services simultaneously with Java gateway
-npx nx run-many --target=serve --projects=mcp-chat-app,mcp-gateway-java,playwright-mcp --parallel
+npx nx run-many --target=serve --projects=mcp-chat-app,mcp-gateway-java,playwright-mcp,apollo-mcp --parallel
 ```
 
 **Option 3: Start services in separate terminals**
@@ -92,6 +111,9 @@ npx nx serve mcp-gateway-java     # Java gateway (port 8002)
 
 # Terminal 3: Playwright MCP Server
 npx nx serve playwright-mcp
+
+# Terminal 4: Apollo MCP Server
+npx nx serve apollo-mcp
 ```
 
 ### Access Points
@@ -101,6 +123,7 @@ npx nx serve playwright-mcp
   - Python: http://localhost:8000
   - Java: http://localhost:8002
 - **Playwright MCP Server**: http://localhost:8001
+- **Apollo MCP Server**: http://localhost:5000
 
 ### Test Endpoints
 
@@ -114,6 +137,10 @@ curl http://localhost:8002/api/health  # Java gateway
 # Test Playwright MCP Server connectivity (choose one)
 curl http://localhost:8000/test/playwright      # Python gateway
 curl http://localhost:8002/api/test/playwright  # Java gateway
+
+# Test Apollo MCP Server connectivity (choose one)
+curl http://localhost:8000/test/apollo          # Python gateway
+curl http://localhost:8002/api/test/apollo      # Java gateway
 
 # Test actual MCP protocol communication (choose one)
 curl -X POST http://localhost:8000/test/mcp      # Python gateway
@@ -166,16 +193,17 @@ curl -X POST http://localhost:8002/api/mcp/query \
 ### Workspace Level
 ```bash
 # Development - Start all services (Python gateway)
-npx nx run-many --target=serve --projects=mcp-chat-app,mcp-gateway,playwright-mcp --parallel
+npx nx run-many --target=serve --projects=mcp-chat-app,mcp-gateway,playwright-mcp,apollo-mcp --parallel
 
 # Development - Start all services (Java gateway)
-npx nx run-many --target=serve --projects=mcp-chat-app,mcp-gateway-java,playwright-mcp --parallel
+npx nx run-many --target=serve --projects=mcp-chat-app,mcp-gateway-java,playwright-mcp,apollo-mcp --parallel
 
 # Development - Individual services
 npx nx serve mcp-chat-app        # Start Next.js app
 npx nx serve mcp-gateway         # Start Python MCP gateway
 npx nx serve mcp-gateway-java    # Start Java MCP gateway
 npx nx serve playwright-mcp      # Start Playwright MCP server
+npx nx serve apollo-mcp          # Start Apollo MCP server
 
 # Testing & Quality
 npx nx run-many --target=test    # Run all tests
@@ -211,6 +239,11 @@ npx nx build mcp-gateway-java          # Build JAR file
 npx nx serve playwright-mcp            # Start MCP server
 npx nx build playwright-mcp            # Build TypeScript
 npx nx test playwright-mcp             # Run Playwright tests
+
+# Apollo MCP
+npx nx serve apollo-mcp                # Start Apollo MCP server
+npx nx serve apollo-mcp-rover          # Start Apollo MCP server via Rover CLI
+npx nx install apollo-mcp              # Install Apollo CLI tools
 ```
 
 ## Development Workflow
@@ -236,6 +269,11 @@ The architecture provides:
 - **Authenticated Access**: All MCP calls go through the gateway with JWT auth
 - **User Isolation**: Each user gets isolated MCP client sessions
 - **Browser Automation**: Full Playwright capabilities via MCP protocol
+- **GraphQL APIs**: Space data APIs via Apollo MCP server with tools:
+  - `ExploreCelestialBodies` - Search planets, moons, and stars
+  - `GetAstronautDetails` - Get info about specific astronauts
+  - `GetAstronautsCurrentlyInSpace` - See who's in space right now
+  - `SearchUpcomingLaunches` - Find upcoming rocket launches
 - **Extensible**: Easy to add more MCP servers as git submodules
 
 ## Git Submodules

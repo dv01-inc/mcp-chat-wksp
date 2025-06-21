@@ -19,6 +19,48 @@ public class TestController {
     @Value("${anthropic.api.key:#{null}}")
     private String anthropicApiKey;
     
+    @GetMapping("/apollo")
+    public Map<String, Object> testApolloConnection() {
+        Map<String, Object> result = new HashMap<>();
+        
+        try {
+            RestTemplate restTemplate = new RestTemplate();
+            
+            // Test the /mcp endpoint
+            try {
+                ResponseEntity<String> response = restTemplate.getForEntity(
+                    "http://localhost:5000/mcp", String.class);
+                result.put("mcp_endpoint_status", response.getStatusCode().value());
+                result.put("mcp_response", response.getBody() != null ? 
+                    response.getBody().substring(0, Math.min(50, response.getBody().length())) : "N/A");
+            } catch (Exception e) {
+                result.put("mcp_endpoint_status", "error");
+                result.put("mcp_response", e.getMessage());
+            }
+            
+            // Test basic connectivity
+            try {
+                ResponseEntity<String> healthResponse = restTemplate.getForEntity(
+                    "http://localhost:5000", String.class);
+                result.put("health_endpoint_status", healthResponse.getStatusCode().value());
+            } catch (Exception e) {
+                result.put("health_endpoint_status", "error");
+            }
+            
+            result.put("status", "success");
+            result.put("apollo_server", "reachable");
+            result.put("message", "Apollo MCP server is reachable");
+            
+        } catch (Exception e) {
+            result.put("status", "error");
+            result.put("apollo_server", "unreachable");
+            result.put("error", e.getMessage());
+            result.put("message", "Failed to connect to Apollo MCP server");
+        }
+        
+        return result;
+    }
+
     @GetMapping("/playwright")
     public Map<String, Object> testPlaywrightConnection() {
         Map<String, Object> result = new HashMap<>();

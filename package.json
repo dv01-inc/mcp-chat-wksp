@@ -23,6 +23,8 @@
     "mcp-gateway-java:build": "nx run mcp-gateway-java:build",
     "playwright-mcp:build": "nx run playwright-mcp:build",
     "playwright-mcp:serve": "nx run playwright-mcp:mcp-server",
+    "apollo-mcp:serve": "nx run apollo-mcp:serve",
+    "apollo-mcp:serve-rover": "nx run apollo-mcp:serve-rover",
     "prepare": "husky"
   },
   "devDependencies": {
