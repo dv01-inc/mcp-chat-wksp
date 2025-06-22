@@ -100,7 +100,7 @@ export class MCPClientsManager {
     const client = this.useGateway 
       ? createGatewayMCPClient(name, serverConfig, {
           autoDisconnectSeconds: this.autoDisconnectSeconds,
-          gatewayUrl: process.env.NEXT_PUBLIC_MCP_GATEWAY_URL || 'http://localhost:8002/api',
+          gatewayUrl: process.env.NEXT_PUBLIC_MCP_GATEWAY_URL || 'http://localhost:8000',
           authToken: process.env.NEXT_PUBLIC_MCP_AUTH_TOKEN || 'mock-token',
         })
       : createMCPClient(name, serverConfig, {
