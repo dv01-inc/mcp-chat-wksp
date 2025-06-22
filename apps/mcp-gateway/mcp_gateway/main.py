@@ -64,6 +64,14 @@ class MCPStreamRequest(BaseModel):
     system_prompt: Optional[str] = None
 
 
+class MCPToolRequest(BaseModel):
+    """Request model for MCP tool execution."""
+    server_id: str  # e.g., "playwright", "apollo"
+    tool_name: str  # e.g., "browser_navigate", "get_astronaut_details"
+    parameters: Optional[Dict[str, Any]] = None
+    model_name: Optional[str] = "openai:gpt-4.1"
+
+
 @app.get("/")
 async def root():
     """Health check endpoint."""
@@ -84,11 +92,11 @@ async def test_apollo_connection():
         
         # Test the /mcp endpoint 
         async with httpx.AsyncClient() as client:
-            response = await client.get("http://localhost:5000/mcp", timeout=5.0)
+            response = await client.get("http://localhost:5001/mcp", timeout=5.0)
             
             # Also test basic connectivity
             try:
-                health_response = await client.get("http://localhost:5000", timeout=2.0, follow_redirects=False)
+                health_response = await client.get("http://localhost:5001", timeout=2.0, follow_redirects=False)
                 health_status = health_response.status_code
             except Exception as health_error:
                 health_status = "error"
@@ -193,6 +201,39 @@ async def test_mcp_query():
         return {
             "status": "error",
             "message": "MCP query failed",
+            "error": str(e),
+            "traceback": tb[-1000:] if len(tb) > 1000 else tb  # Last 1000 chars
+        }
+
+
+@app.post("/test/apollo-mcp")
+async def test_apollo_mcp_query():
+    """Test actual MCP query to Apollo server."""
+    try:
+        # Test if we can create an MCP client and run a simple query
+        from .mcp_client import MCPClient
+        import traceback
+        
+        client = MCPClient(
+            model_name="openai:gpt-4.1",
+            mcp_server_url="http://localhost:5001/mcp"
+        )
+        
+        # Try a simple query
+        result = await client.run("List available tools for space data")
+        
+        return {
+            "status": "success",
+            "message": "Apollo MCP query successful",
+            "result_preview": str(result)[:200] + "..." if len(str(result)) > 200 else str(result)
+        }
+        
+    except Exception as e:
+        # Get full traceback for debugging
+        tb = traceback.format_exc()
+        return {
+            "status": "error",
+            "message": "Apollo MCP query failed",
             "error": str(e),
             "traceback": tb[-1000:] if len(tb) > 1000 else tb  # Last 1000 chars
         }
@@ -314,27 +355,143 @@ async def mcp_chat(
 async def list_mcp_servers(
     credentials: HTTPAuthorizationCredentials = Security(security)
 ):
-    """List available MCP servers for the authenticated user."""
+    """List available MCP servers and their capabilities."""
     try:
         # Verify the JWT token
         user_info = verify_token(credentials.credentials)
         
-        # Return list of user's MCP clients
-        user_clients = []
+        # Define available MCP servers with their capabilities
+        available_servers = [
+            {
+                "id": "playwright",
+                "name": "Playwright Browser Automation",
+                "description": "Browser automation tools for web scraping, testing, and interaction",
+                "server_url": "http://localhost:8001/sse",
+                "status": "available",
+                "transport": "sse",
+                "capabilities": [
+                    "browser_navigation", "web_scraping", "ui_testing", 
+                    "screenshot_capture", "form_automation"
+                ],
+                "tools": [
+                    "browser_navigate", "browser_click", "browser_type", 
+                    "browser_screenshot", "browser_wait_for", "browser_extract_text"
+                ]
+            },
+            {
+                "id": "apollo",
+                "name": "Apollo Space Data",
+                "description": "Access to space mission data, astronaut information, and celestial body details",
+                "server_url": "http://localhost:5001/mcp",
+                "status": "available",
+                "transport": "http",
+                "capabilities": [
+                    "space_data", "mission_tracking", "astronaut_info", 
+                    "celestial_bodies", "launch_schedules"
+                ],
+                "tools": [
+                    "get_astronaut_details", "search_upcoming_launches",
+                    "get_astronauts_currently_in_space", "explore_celestial_bodies"
+                ]
+            }
+        ]
+        
+        # Check which servers the user has active sessions with
         user_id = user_info.get("sub", "anonymous")
+        active_sessions = []
         
         for client_key in mcp_clients:
             if client_key.endswith(f":{user_id}"):
                 server_url = client_key.split(f":{user_id}")[0]
-                user_clients.append({
-                    "server_url": server_url,
-                    "status": "connected"
-                })
+                active_sessions.append(server_url)
         
-        return {"servers": user_clients}
+        # Mark servers as connected if user has active sessions
+        for server in available_servers:
+            if server["server_url"] in active_sessions:
+                server["status"] = "connected"
+        
+        return {
+            "servers": available_servers,
+            "user_id": user_id,
+            "active_sessions": len(active_sessions)
+        }
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to list servers: {str(e)}")
+
+
+@app.post("/mcp/tools/execute", response_model=MCPResponse)
+async def execute_mcp_tool(
+    request: MCPToolRequest,
+    credentials: HTTPAuthorizationCredentials = Security(security)
+):
+    """Execute a specific tool on an MCP server."""
+    try:
+        # Verify the JWT token
+        user_info = verify_token(credentials.credentials)
+        
+        # Map server IDs to URLs
+        server_mapping = {
+            "playwright": "http://localhost:8001/sse",
+            "apollo": "http://localhost:5001/mcp"
+        }
+        
+        server_url = server_mapping.get(request.server_id)
+        if not server_url:
+            raise HTTPException(status_code=400, detail=f"Unknown server ID: {request.server_id}")
+        
+        # Build tool execution prompt
+        if request.parameters:
+            param_str = ", ".join([f"{k}: {v}" for k, v in request.parameters.items()])
+            prompt = f"Execute the {request.tool_name} tool with parameters: {param_str}"
+        else:
+            prompt = f"Execute the {request.tool_name} tool"
+        
+        # Create MCP client key
+        client_key = f"{server_url}:{user_info.get('sub', 'anonymous')}"
+        
+        # Get or create MCP client
+        if client_key not in mcp_clients:
+            mcp_clients[client_key] = MCPClient(
+                model_name=request.model_name,
+                mcp_server_url=server_url,
+                system_prompt=f"You are a tool executor. Use the {request.tool_name} tool to fulfill the request."
+            )
+        
+        client = mcp_clients[client_key]
+        
+        # Set authentication headers
+        headers = {
+            "X-User-ID": user_info.get("sub", "anonymous"),
+            "X-User-Email": user_info.get("email", ""),
+            "X-Tool-Name": request.tool_name,
+            "X-Server-ID": request.server_id
+        }
+        
+        # Execute the tool
+        result = await client.run(prompt, headers=headers)
+        
+        usage_info = None
+        if hasattr(result, 'usage'):
+            try:
+                usage_obj = result.usage()
+                usage_info = {
+                    "requests": usage_obj.requests if hasattr(usage_obj, 'requests') else None,
+                    "total_tokens": usage_obj.total_tokens if hasattr(usage_obj, 'total_tokens') else None,
+                    "server_id": request.server_id,
+                    "tool_name": request.tool_name
+                }
+            except:
+                usage_info = None
+        
+        return MCPResponse(
+            result=str(result),
+            usage=usage_info,
+            error=None
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Tool execution failed: {str(e)}")
 
 
 @app.delete("/mcp/servers/{server_id}")

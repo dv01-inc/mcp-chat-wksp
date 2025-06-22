@@ -218,16 +218,16 @@ export class GatewayMCPClient {
       return this.serverConfig.url;
     }
     
-    // Default URLs for known servers
+    // Default URLs for known servers matching Python gateway expectations
     if (this.name.includes('apollo')) {
-      return 'http://localhost:5000/mcp';
+      return 'http://localhost:5001/mcp';  // Apollo uses streamable HTTP
     }
     if (this.name.includes('playwright')) {
-      return 'http://localhost:8001/mcp';
+      return 'http://localhost:8001/sse';  // Playwright uses SSE transport
     }
     
     // Fallback
-    return 'http://localhost:8001/mcp';
+    return 'http://localhost:8001/sse';
   }
 
   private buildToolPrompt(toolName: string, input?: unknown): string {

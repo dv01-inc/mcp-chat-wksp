@@ -1,58 +1,19 @@
-import {
-  appendResponseMessages,
-  createDataStreamResponse,
-  smoothStream,
-  streamText,
-  type UIMessage,
-  formatDataStreamPart,
-  appendClientMessage,
-  Message,
-} from "ai";
+/**
+ * Gateway-only chat route
+ * All LLM processing is handled by the MCP Gateway
+ */
 
-import { customModelProvider, isToolCallUnsupportedModel } from "lib/ai/models";
-
-import { mcpClientsManager } from "lib/ai/mcp/mcp-manager";
-
+import { getSession } from "auth/server";
 import { chatRepository } from "lib/db/repository";
 import logger from "logger";
-import {
-  buildMcpServerCustomizationsSystemPrompt,
-  buildProjectInstructionsSystemPrompt,
-  buildUserSystemPrompt,
-} from "lib/ai/prompts";
-import {
-  chatApiSchemaRequestBodySchema,
-  ChatMention,
-  ChatMessageAnnotation,
-} from "app-types/chat";
+import { chatApiSchemaRequestBodySchema } from "app-types/chat";
 
-import { errorIf, safe } from "ts-safe";
-
-import {
-  appendAnnotations,
-  excludeToolExecution,
-  filterToolsByMentions,
-  handleError,
-  manualToolExecuteByLastMessage,
-  mergeSystemPrompt,
-  convertToMessage,
-  extractInProgressToolPart,
-  assignToolResult,
-  isUserMessage,
-  getAllowedDefaultToolkit,
-  filterToolsByAllowedMCPServers,
-  filterMcpServerCustomizations,
-} from "./helper";
-import {
-  generateTitleFromUserMessageAction,
-  rememberMcpServerCustomizationsAction,
-} from "./actions";
-import { getSession } from "auth/server";
+const GATEWAY_URL = process.env.NEXT_PUBLIC_MCP_GATEWAY_URL || 'http://localhost:8000';
+const AUTH_TOKEN = process.env.NEXT_PUBLIC_MCP_AUTH_TOKEN || 'mock-token';
 
 export async function POST(request: Request) {
   try {
     const json = await request.json();
-
     const session = await getSession();
 
     if (!session?.user.id) {
@@ -63,21 +24,16 @@ export async function POST(request: Request) {
       id,
       message,
       chatModel,
-      toolChoice,
-      allowedAppDefaultToolkit,
       allowedMcpServers,
       projectId,
     } = chatApiSchemaRequestBodySchema.parse(json);
 
-    const model = customModelProvider.getModel(chatModel);
-
+    // Get or create thread
     let thread = await chatRepository.selectThreadDetails(id);
-
+    
     if (!thread) {
-      const title = await generateTitleFromUserMessageAction({
-        message,
-        model,
-      });
+      // Create new thread with simple title
+      const title = `Chat ${new Date().toLocaleDateString()}`;
       const newThread = await chatRepository.insertThread({
         id,
         projectId: projectId ?? null,
@@ -91,162 +47,127 @@ export async function POST(request: Request) {
       return new Response("Forbidden", { status: 403 });
     }
 
-    // if is false, it means the last message is manual tool execution
-    const isLastMessageUserMessage = isUserMessage(message);
+    // Extract user message text
+    const userMessageText = message.parts
+      .filter((part: any) => part.type === 'text')
+      .map((part: any) => part.text)
+      .join(' ');
 
-    const previousMessages = (thread?.messages ?? []).map(convertToMessage);
+    // Save user message to database
+    await chatRepository.insertMessage({
+      threadId: thread!.id,
+      model: chatModel?.model ?? null,
+      role: "user",
+      parts: message.parts,
+      attachments: message.experimental_attachments,
+      id: message.id,
+      annotations: [],
+    });
 
-    if (!thread) {
-      return new Response("Thread not found", { status: 404 });
+    // Determine which MCP server to use based on the message
+    let serverUrl = 'http://localhost:8001/sse'; // Default to Playwright
+    let serverId = 'playwright';
+
+    // Simple keyword detection for server selection
+    if (userMessageText.toLowerCase().includes('space') || 
+        userMessageText.toLowerCase().includes('astronaut') ||
+        userMessageText.toLowerCase().includes('mission') ||
+        userMessageText.toLowerCase().includes('launch')) {
+      serverUrl = 'http://localhost:5001/mcp';
+      serverId = 'apollo';
     }
 
-    const annotations = (message?.annotations as ChatMessageAnnotation[]) ?? [];
-
-    const mcpTools = mcpClientsManager.tools();
-
-    const mentions = annotations
-      .flatMap((annotation) => annotation.mentions)
-      .filter(Boolean) as ChatMention[];
-
-    const isToolCallAllowed =
-      (!isToolCallUnsupportedModel(model) && toolChoice != "none") ||
-      mentions.length > 0;
-
-    const tools = safe(mcpTools)
-      .map(errorIf(() => !isToolCallAllowed && "Not allowed"))
-      .map((tools) => {
-        // filter tools by mentions
-        if (mentions.length) {
-          return filterToolsByMentions(tools, mentions);
-        }
-        // filter tools by allowed mcp servers
-        return filterToolsByAllowedMCPServers(tools, allowedMcpServers);
-      })
-      .orElse(undefined);
-
-    const messages: Message[] = isLastMessageUserMessage
-      ? appendClientMessage({
-          messages: previousMessages,
-          message,
-        })
-      : previousMessages;
-
-    return createDataStreamResponse({
-      execute: async (dataStream) => {
-        const inProgressToolStep = extractInProgressToolPart(
-          messages.slice(-2),
-        );
-
-        if (inProgressToolStep) {
-          const toolResult = await manualToolExecuteByLastMessage(
-            inProgressToolStep,
-            message,
-            mcpTools,
-          );
-          assignToolResult(inProgressToolStep, toolResult);
-          dataStream.write(
-            formatDataStreamPart("tool_result", {
-              toolCallId: inProgressToolStep.toolInvocation.toolCallId,
-              result: toolResult,
-            }),
-          );
-        }
-
-        const userPreferences = thread?.userPreferences || undefined;
-
-        const mcpServerCustomizations = await safe()
-          .map(() => {
-            if (Object.keys(tools ?? {}).length === 0)
-              throw new Error("No tools found");
-            return rememberMcpServerCustomizationsAction(session.user.id);
-          })
-          .map((v) => filterMcpServerCustomizations(tools!, v))
-          .orElse({});
-
-        const systemPrompt = mergeSystemPrompt(
-          buildUserSystemPrompt(session.user, userPreferences),
-          buildProjectInstructionsSystemPrompt(thread?.instructions),
-          buildMcpServerCustomizationsSystemPrompt(mcpServerCustomizations),
-        );
-
-        // Precompute toolChoice to avoid repeated tool calls
-        const computedToolChoice =
-          isToolCallAllowed && mentions.length > 0 && inProgressToolStep
-            ? "required"
-            : "auto";
-
-        const vercelAITooles = safe(tools)
-          .map((t) => {
-            if (!t) return undefined;
-            const bindingTools =
-              toolChoice === "manual" ? excludeToolExecution(t) : t;
-
-            return {
-              ...getAllowedDefaultToolkit(allowedAppDefaultToolkit),
-              ...bindingTools,
-            };
-          })
-          .unwrap();
-
-        const result = streamText({
-          model,
-          system: systemPrompt,
-          messages,
-          maxSteps: 10,
-          experimental_continueSteps: true,
-          experimental_transform: smoothStream({ chunking: "word" }),
-          maxRetries: 0,
-          tools: vercelAITooles,
-          toolChoice: computedToolChoice,
-          onFinish: async ({ response, usage }) => {
-            const appendMessages = appendResponseMessages({
-              messages: messages.slice(-1),
-              responseMessages: response.messages,
-            });
-            if (isLastMessageUserMessage) {
-              await chatRepository.insertMessage({
-                threadId: thread!.id,
-                model: chatModel?.model ?? null,
-                role: "user",
-                parts: message.parts,
-                attachments: message.experimental_attachments,
-                id: message.id,
-                annotations: appendAnnotations(message.annotations, {
-                  usageTokens: usage.promptTokens,
-                }),
-              });
-            }
-            const assistantMessage = appendMessages.at(-1);
-            if (assistantMessage) {
-              const annotations = appendAnnotations(
-                assistantMessage.annotations,
-                {
-                  usageTokens: usage.completionTokens,
-                  toolChoice,
-                },
-              );
-              dataStream.writeMessageAnnotation(annotations.at(-1)!);
-              await chatRepository.upsertMessage({
-                model: chatModel?.model ?? null,
-                threadId: thread!.id,
-                role: assistantMessage.role,
-                id: assistantMessage.id,
-                parts: assistantMessage.parts as UIMessage["parts"],
-                attachments: assistantMessage.experimental_attachments,
-                annotations,
-              });
-            }
-          },
-        });
-        result.consumeStream();
-        result.mergeIntoDataStream(dataStream, {
-          sendReasoning: true,
-        });
+    // Send to MCP Gateway
+    const gatewayResponse = await fetch(`${GATEWAY_URL}/mcp/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${AUTH_TOKEN}`,
       },
-      onError: handleError,
+      body: JSON.stringify({
+        prompt: userMessageText,
+        server_url: serverUrl,
+        model_name: chatModel?.model || 'gpt-4',
+      }),
     });
+
+    if (!gatewayResponse.ok) {
+      const errorText = await gatewayResponse.text();
+      throw new Error(`Gateway request failed: ${gatewayResponse.status} - ${errorText}`);
+    }
+
+    const gatewayResult = await gatewayResponse.json();
+
+    if (gatewayResult.error) {
+      throw new Error(gatewayResult.error);
+    }
+
+    // Create assistant message
+    const assistantMessageId = `assistant-${Date.now()}`;
+    const assistantMessage = {
+      id: assistantMessageId,
+      role: 'assistant' as const,
+      parts: [
+        {
+          type: 'text' as const,
+          text: gatewayResult.result,
+        }
+      ],
+      experimental_attachments: [],
+      annotations: [
+        {
+          type: 'gateway-response',
+          server_id: serverId,
+          server_url: serverUrl,
+          usage: gatewayResult.usage,
+        }
+      ],
+    };
+
+    // Save assistant message to database
+    await chatRepository.upsertMessage({
+      model: chatModel?.model ?? null,
+      threadId: thread!.id,
+      role: assistantMessage.role,
+      id: assistantMessage.id,
+      parts: assistantMessage.parts,
+      attachments: assistantMessage.experimental_attachments,
+      annotations: assistantMessage.annotations,
+    });
+
+    // Return streaming response format expected by the UI
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      start(controller) {
+        // Send the assistant message
+        const messageData = JSON.stringify({
+          type: 'text-delta',
+          textDelta: gatewayResult.result,
+        });
+        controller.enqueue(encoder.encode(`0:${messageData}\n`));
+
+        // Send finish event
+        const finishData = JSON.stringify({
+          type: 'finish',
+          finishReason: 'stop',
+          usage: gatewayResult.usage || { promptTokens: 0, completionTokens: 0 },
+        });
+        controller.enqueue(encoder.encode(`0:${finishData}\n`));
+
+        controller.close();
+      },
+    });
+
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+      },
+    });
+
   } catch (error: any) {
-    logger.error(error);
+    logger.error('Gateway chat error:', error);
     return new Response(error.message, { status: 500 });
   }
 }
