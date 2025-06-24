@@ -1,344 +1,360 @@
-# MCP Chat Workspace
+# 🧠 MCP Chat Workspace
 
-A full-stack Nx monorepo for Model Context Protocol (MCP) chat applications with browser automation capabilities.
+A modern, intelligent chat application workspace built with **Next.js** and powered by an **MCP Gateway** for seamless integration with Model Context Protocol servers.
 
-## Architecture
+## 🌟 Overview
+
+This workspace demonstrates a complete **"dumb client"** architecture where:
+- **Next.js app** handles only UI and user experience
+- **MCP Gateway** manages all AI/LLM processing and tool orchestration
+- **Intelligent routing** automatically selects the best tools for each user request
+- **Containerized deployment** with Docker and PostgreSQL
+
+## 🏗️ Architecture
 
 ```
-                                    ┌─────────────────┐
-                              ┌─────│ Playwright MCP  │
-                              │     │    Server       │
-                              │     │   Port: 8001    │
-┌─────────────────┐    ┌─────────────────┐──┘    
-│   Next.js App   │────│  MCP Gateway    │       
-│   (Frontend)    │    │ (Java/Python)   │       ┌─────────────────┐
-│   Port: 4200    │    │ Port: 8000/8002 │───────│  Apollo MCP     │
-└─────────────────┘    └─────────────────┘       │   Server        │
-                                                 │  Port: 5000     │
-                                                 └─────────────────┘
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Next.js App   │────│   MCP Gateway   │────│   PostgreSQL    │
+│  (Port 3000)    │    │  (Port 8000)    │    │  (Port 5433)    │
+│                 │    │                 │    │                 │
+│ • UI Components │    │ • Intelligent   │    │ • Chat History  │
+│ • Gateway APIs  │    │   Server Route  │    │ • User Data     │
+│ • No Database   │    │ • Chat History  │    │ • Persistence   │
+│ • No LLM Logic  │    │ • Auth & JWT    │    └─────────────────┘
+└─────────────────┘    │ • Database ORM  │
+                       └─────────────────┘
+                                │
+                    ┌─────────────────────────┐
+                    │      MCP Servers        │
+                    │                         │
+                    │ • Playwright (Browser)  │
+                    │ • Apollo (Space Data)   │
+                    │ • Custom Servers...     │
+                    └─────────────────────────┘
 ```
 
-## Projects
-
-### **Apps**
-- **`mcp-chat-app`** - Next.js frontend application with MCP integration
-- **`mcp-gateway`** - Python FastAPI service for authenticated MCP calls  
-- **`mcp-gateway-java`** - Java Spring Boot service with streamable HTTP MCP support
-- **`playwright-mcp`** - Microsoft's Playwright MCP server (git submodule)
-- **`apollo-mcp`** - Apollo GraphQL MCP server for space data APIs (git submodule)
-
-### **Technology Stack**
-- **Frontend**: Next.js 15, TypeScript, Tailwind CSS, Nx
-- **Backend**: 
-  - Python FastAPI, Pydantic AI, uvicorn
-  - Java Spring Boot, Spring AI MCP Client, Gradle
-- **Browser Automation**: Playwright MCP Server
-- **GraphQL APIs**: Apollo MCP Server with Space data
-- **Database**: PostgreSQL (via Docker)
-- **Authentication**: JWT tokens, Better Auth
-- **Monorepo**: Nx with TypeScript, Python, Java, and Rust support
-
-## Quick Start
+## 🚀 Quick Start
 
 ### Prerequisites
 - Node.js 18+
-- Python 3.9+
-- Java 21+ (for Java MCP Gateway)
-- Rust (for Apollo MCP Server)
-- Apollo CLI tools (Rover CLI, Apollo MCP Server)
-- Docker (for PostgreSQL)
-- pnpm (package manager)
+- Docker and Docker Compose
+- pnpm (recommended) or npm
 
-### Setup
-
-1. **Clone and install dependencies**
-   ```bash
-   git clone <repository-url>
-   cd mcp-chat-workspace
-   pnpm install
-   ```
-
-2. **Initialize git submodules**
-   ```bash
-   git submodule update --init --recursive
-   ```
-
-3. **Install Apollo CLI tools**
-   ```bash
-   # Install Rover CLI
-   curl -sSL https://rover.apollo.dev/nix/latest | sh
-   
-   # Install Apollo MCP Server
-   curl -sSL https://mcp.apollo.dev/download/nix/latest | sh
-   ```
-
-4. **Start PostgreSQL database**
-   ```bash
-   docker run --name mcp-pg \
-     -e POSTGRES_PASSWORD=mcp_password \
-     -e POSTGRES_USER=mcp_user \
-     -e POSTGRES_DB=mcp_chat_db \
-     -p 5432:5432 -d postgres
-   ```
-
-5. **Set up database schema**
-   ```bash
-   npx nx run mcp-chat-app:db:push
-   ```
-
-### Development
-
-**Option 1: Start all services at once (Python Gateway)**
+### 1. Install Dependencies
 ```bash
-# Start all services simultaneously
-npx nx run-many --target=serve --projects=mcp-chat-app,mcp-gateway,playwright-mcp,apollo-mcp --parallel
+pnpm install
 ```
 
-**Option 2: Start all services at once (Java Gateway)**
+### 2. Start All Services
 ```bash
-# Start all services simultaneously with Java gateway
-npx nx run-many --target=serve --projects=mcp-chat-app,mcp-gateway-java,playwright-mcp,apollo-mcp --parallel
+# Start containerized gateway with PostgreSQL
+pnpm containers:up
+
+# Start Next.js app
+pnpm dev
+
+# Start MCP servers
+pnpm playwright-mcp:serve    # Browser automation
+pnpm apollo-mcp:serve        # Space data
 ```
 
-**Option 3: Start services in separate terminals**
-```bash
-# Terminal 1: Next.js App
-npx nx serve mcp-chat-app
+### 3. Open Application
+- **Chat App**: http://localhost:3000
+- **Gateway API**: http://localhost:8000
+- **Health Check**: http://localhost:8000/health
 
-# Terminal 2: MCP Gateway (choose one)
-npx nx serve mcp-gateway          # Python gateway (port 8000)
-npx nx serve mcp-gateway-java     # Java gateway (port 8002)
-
-# Terminal 3: Playwright MCP Server
-npx nx serve playwright-mcp
-
-# Terminal 4: Apollo MCP Server
-npx nx serve apollo-mcp
-```
-
-### Access Points
-
-- **Frontend**: http://localhost:4200
-- **MCP Gateway API**: 
-  - Python: http://localhost:8000
-  - Java: http://localhost:8002
-- **Playwright MCP Server**: http://localhost:8001
-- **Apollo MCP Server**: http://localhost:5000
-
-### Test Endpoints
-
-After starting all services, you can test the connections:
-
-#### **Gateway Integration Test**
-```bash
-# Run comprehensive integration test
-./test-gateway-simple.sh
-
-# Or test individual endpoints:
-```
-
-```bash
-# Test MCP Gateway health (choose one)
-curl http://localhost:8000/health      # Python gateway
-curl http://localhost:8002/api/health  # Java gateway
-
-# Test Playwright MCP Server connectivity (choose one)
-curl http://localhost:8000/test/playwright      # Python gateway
-curl http://localhost:8002/api/test/playwright  # Java gateway
-
-# Test Apollo MCP Server connectivity (choose one)
-curl http://localhost:8000/test/apollo          # Python gateway
-curl http://localhost:8002/api/test/apollo      # Java gateway
-
-# Test actual MCP protocol communication (choose one)
-curl -X POST http://localhost:8000/test/mcp      # Python gateway
-curl -X POST http://localhost:8002/api/test/mcp  # Java gateway
-
-# Test authenticated MCP query (using mock token in development)
-# Python gateway:
-curl -X POST http://localhost:8000/mcp/query \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer mock-token" \
-  -d '{
-    "prompt": "What browser automation tools are available?",
-    "server_url": "http://localhost:8001/mcp",
-    "model_name": "openai:gpt-4.1"
-  }'
-
-# Java gateway:
-curl -X POST http://localhost:8002/api/mcp/query \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer mock-token" \
-  -d '{
-    "prompt": "What browser automation tools are available?",
-    "serverUrl": "http://localhost:8001/mcp",
-    "modelName": "openai:gpt-4.1"
-  }'
-```
-
-#### **Chat App Integration Test**
-```bash
-# Test chat app's gateway integration (requires chat app to be running)
-curl http://localhost:4200/api/test/gateway
-
-# Test specific MCP query through chat app
-curl -X POST http://localhost:4200/api/test/gateway \
-  -H "Content-Type: application/json" \
-  -d '{
-    "prompt": "Who are the astronauts currently in space?",
-    "serverUrl": "http://localhost:5000/mcp"
-  }'
-```
-
-**Expected responses:**
-- `/health` → `{"status": "healthy", "service": "mcp-gateway-java"}`
-- `/test/apollo` → Apollo MCP server connection status
-- `/test/playwright` → Playwright MCP server connection status  
-- `/mcp/query` → Authenticated MCP query response with mock data
-- Chat app `/test/gateway` → Full integration test results
-
-## Configuration
-
-### Environment Variables
-
-**Next.js App** (`apps/mcp-chat-app/.env`):
-- Database connection (PostgreSQL)
-- LLM provider API keys (OpenAI, Anthropic, etc.)
-- Authentication secrets
-
-**MCP Gateway** (`apps/mcp-gateway/.env`):
-- JWT authentication configuration
-- LLM provider API keys  
-- MCP server endpoints
-
-**Chat App Gateway Integration** (`apps/mcp-chat-app/.env`):
-- `NEXT_PUBLIC_USE_MCP_GATEWAY=true` - Enable gateway integration
-- `NEXT_PUBLIC_MCP_GATEWAY_URL=http://localhost:8002/api` - Gateway URL  
-- `NEXT_PUBLIC_MCP_AUTH_TOKEN=mock-token` - Authentication token
-
-## Available Commands
-
-### Workspace Level
-```bash
-# Development - Start all services (Python gateway)
-npx nx run-many --target=serve --projects=mcp-chat-app,mcp-gateway,playwright-mcp,apollo-mcp --parallel
-
-# Development - Start all services (Java gateway)
-npx nx run-many --target=serve --projects=mcp-chat-app,mcp-gateway-java,playwright-mcp,apollo-mcp --parallel
-
-# Development - Individual services
-npx nx serve mcp-chat-app        # Start Next.js app
-npx nx serve mcp-gateway         # Start Python MCP gateway
-npx nx serve mcp-gateway-java    # Start Java MCP gateway
-npx nx serve playwright-mcp      # Start Playwright MCP server
-npx nx serve apollo-mcp          # Start Apollo MCP server
-
-# Testing & Quality
-npx nx run-many --target=test    # Run all tests
-npx nx run-many --target=lint    # Lint all projects
-npx nx run-many --target=format  # Format all projects (where available)
-npx nx affected --target=test    # Run tests for affected projects only
-
-# Building
-npx nx run-many --target=build   # Build all projects
-npx nx build mcp-chat-app        # Build Next.js app
-npx nx build playwright-mcp      # Build Playwright MCP server
-```
-
-### Project Specific
-```bash
-# Next.js App
-npx nx serve mcp-chat-app              # Start dev server
-npx nx build mcp-chat-app              # Build for production
-npx nx test mcp-chat-app               # Run tests
-npx nx run mcp-chat-app:db:push        # Push database schema
-
-# MCP Gateway (Python)
-npx nx serve mcp-gateway               # Start FastAPI server
-npx nx test mcp-gateway                # Run Python tests
-npx nx run mcp-gateway:sync            # Install Python dependencies
-
-# MCP Gateway (Java)
-npx nx serve mcp-gateway-java          # Start Spring Boot server
-npx nx test mcp-gateway-java           # Run Java tests
-npx nx build mcp-gateway-java          # Build JAR file
-
-# Playwright MCP
-npx nx serve playwright-mcp            # Start MCP server
-npx nx build playwright-mcp            # Build TypeScript
-npx nx test playwright-mcp             # Run Playwright tests
-
-# Apollo MCP
-npx nx serve apollo-mcp                # Start Apollo MCP server
-npx nx serve apollo-mcp-rover          # Start Apollo MCP server via Rover CLI
-npx nx install apollo-mcp              # Install Apollo CLI tools
-```
-
-## Development Workflow
-
-1. **Start the database** (Docker PostgreSQL)
-2. **Start all services**: `npx nx run-many --target=serve --projects=mcp-chat-app,mcp-gateway,playwright-mcp --parallel`
-3. **Test the connections** using the test endpoints above
-4. **Access the frontend** at http://localhost:4200
-5. **Authenticate** with JWT tokens (mock tokens in development)
-6. **Connect to MCP servers** through the gateway
-7. **Use browser automation** via Playwright MCP tools
-
-### Pro Tips
-- Use `npx nx affected --target=test` to only test changed projects
-- Use `npx nx graph` to visualize project dependencies
-- Use `npx nx reset` to clear Nx cache if needed
-- Use the test endpoints to verify all services are communicating properly
-
-## MCP Integration
-
-The architecture provides:
-
-- **Authenticated Access**: All MCP calls go through the gateway with JWT auth
-- **User Isolation**: Each user gets isolated MCP client sessions
-- **Browser Automation**: Full Playwright capabilities via MCP protocol
-- **GraphQL APIs**: Space data APIs via Apollo MCP server with tools:
-  - `ExploreCelestialBodies` - Search planets, moons, and stars
-  - `GetAstronautDetails` - Get info about specific astronauts
-  - `GetAstronautsCurrentlyInSpace` - See who's in space right now
-  - `SearchUpcomingLaunches` - Find upcoming rocket launches
-- **Extensible**: Easy to add more MCP servers as git submodules
-
-## Git Submodules
-
-This monorepo uses git submodules for external MCP servers:
-
-```bash
-# Update submodules
-git submodule update --remote
-
-# Add new MCP server submodule
-git submodule add <repo-url> apps/<server-name>
-```
-
-## Project Structure
+## 📁 Workspace Structure
 
 ```
 mcp-chat-workspace/
 ├── apps/
-│   ├── mcp-chat-app/          # Next.js frontend
-│   ├── mcp-gateway/           # Python MCP gateway
-│   └── playwright-mcp/        # Playwright MCP server (submodule)
-├── docs/                      # Documentation
-├── docker/                    # Docker configurations
-├── nx.json                    # Nx workspace configuration
-├── package.json               # Workspace dependencies
-└── tsconfig.base.json         # Base TypeScript config
+│   ├── mcp-chat-app/          # Next.js chat application
+│   │   ├── src/
+│   │   │   ├── app/           # App router pages
+│   │   │   ├── components/    # React components
+│   │   │   └── lib/           # Utilities
+│   │   └── package.json
+│   │
+│   ├── mcp-gateway/           # FastAPI intelligent gateway
+│   │   ├── mcp_gateway/       # Python source code
+│   │   ├── Dockerfile         # Container definition
+│   │   ├── docker-compose.yml # Multi-service setup
+│   │   ├── README.md          # Detailed gateway docs
+│   │   └── DOCKER.md          # Container deployment guide
+│   │
+│   ├── playwright-mcp/        # Browser automation server
+│   └── apollo-mcp/            # Space data server
+│
+├── package.json               # Workspace scripts
+├── nx.json                    # Nx configuration
+└── README.md                  # This file
 ```
 
-## Contributing
+## 🛠️ Development Commands
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Run tests and linting
-5. Submit a pull request
+### Container Management
+```bash
+# Start all containers
+pnpm containers:up
 
-## License
+# Check container status
+pnpm containers:status
 
-MIT License - see individual project licenses for details.
+# View container logs
+pnpm containers:logs
+
+# Stop all containers
+pnpm containers:down
+
+# Restart with rebuild
+pnpm containers:restart
+```
+
+### Application Development
+```bash
+# Start Next.js app
+pnpm dev
+
+# Build for production
+pnpm build
+
+# Run tests
+pnpm test
+
+# Lint code
+pnpm lint
+
+# Format code
+pnpm format
+```
+
+### MCP Server Management
+```bash
+# Start Playwright MCP server
+pnpm playwright-mcp:serve
+
+# Start Apollo MCP server
+pnpm apollo-mcp:serve
+
+# Build MCP servers
+pnpm playwright-mcp:build
+```
+
+### Gateway Development
+```bash
+# Start gateway locally (for development)
+pnpm mcp-gateway:serve
+
+# Run gateway tests
+pnpm mcp-gateway:test
+
+# Check gateway status
+curl http://localhost:8000/health
+```
+
+## 🧠 Intelligent Features
+
+### Automatic Server Selection
+The gateway automatically routes user requests to the best MCP server:
+
+**Browser Tasks** → Playwright Server
+- "Take a screenshot of google.com"
+- "Navigate to github.com and click sign in"
+- "Extract text from the homepage"
+
+**Space Data** → Apollo Server
+- "Who are the astronauts in space?"
+- "Show me upcoming SpaceX launches"
+- "Tell me about Mars missions"
+
+### Natural Language Interface
+```javascript
+// Simple API call - no tool knowledge required
+const response = await fetch('/api/chat', {
+  method: 'POST',
+  body: JSON.stringify({
+    messages: [
+      { role: 'user', content: 'Take a screenshot of apple.com' }
+    ]
+  })
+});
+```
+
+## 🐳 Container Deployment
+
+### Using Nx (Recommended)
+```bash
+# Single command to start everything
+pnpm containers:up
+```
+
+### Using Docker Compose
+```bash
+cd apps/mcp-gateway
+docker-compose up -d
+```
+
+### Environment Variables
+Create `apps/mcp-gateway/.env`:
+```bash
+ANTHROPIC_API_KEY=your_anthropic_key
+OPENAI_API_KEY=your_openai_key
+```
+
+## 📊 Monitoring
+
+### Health Checks
+```bash
+# Gateway health
+curl http://localhost:8000/health
+
+# Next.js app
+curl http://localhost:3000/api/health
+
+# Container status
+pnpm containers:status
+```
+
+### Logs
+```bash
+# All container logs
+pnpm containers:logs
+
+# Gateway logs only
+docker-compose -f apps/mcp-gateway/docker-compose.yml logs -f gateway
+
+# Next.js logs
+pnpm dev
+```
+
+## 🎯 Key Benefits
+
+### For Developers
+- **Zero MCP Complexity**: Next.js app has no MCP knowledge
+- **Universal Integration**: Any client can integrate via simple HTTP APIs
+- **Intelligent Routing**: Gateway automatically selects optimal tools
+- **Containerized**: Easy deployment and scaling
+
+### For Users
+- **Natural Language**: Just describe what you want
+- **Multi-Tool Access**: Browser automation, data queries, and more
+- **Persistent History**: All conversations saved and searchable
+- **Real-Time Responses**: Streaming AI responses
+
+### For Operations
+- **Scalable Architecture**: Independent scaling of components
+- **Health Monitoring**: Built-in health checks and observability
+- **Database Persistence**: PostgreSQL for production reliability
+- **Container Orchestration**: Docker Compose for easy deployment
+
+## 🔧 Customization
+
+### Adding New MCP Servers
+
+1. **Create Server**: Add to `apps/` directory
+2. **Configure Gateway**: Update `AVAILABLE_SERVERS` in gateway
+3. **Add Keywords**: Define routing keywords for intelligent selection
+4. **Test Integration**: Verify routing with test prompts
+
+### Extending the Chat App
+
+1. **Add Components**: Create new React components in `src/components/`
+2. **New Pages**: Add routes in `src/app/`
+3. **API Integration**: Use gateway APIs in `src/app/api/`
+4. **Styling**: Customize with Tailwind CSS
+
+### Environment Configuration
+
+**Development**:
+- Mock authentication enabled
+- SQLite database (optional)
+- Hot reload for all services
+
+**Production**:
+- JWT authentication required
+- PostgreSQL database
+- Optimized container builds
+
+## 🧪 Testing
+
+### Automated Tests
+```bash
+# Run all tests
+pnpm test
+
+# Test specific projects
+nx test mcp-chat-app
+nx test mcp-gateway
+```
+
+### Manual Testing
+```bash
+# Test containerized setup
+node test-containerized-gateway.js
+
+# Test database migration
+node test-database-migration.js
+```
+
+### API Testing
+```bash
+# Test intelligent routing
+curl -X POST http://localhost:8000/mcp/chat \
+  -H "Authorization: Bearer mock-token" \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "Take a screenshot of github.com"}'
+```
+
+## 📚 Documentation
+
+- **[Gateway README](apps/mcp-gateway/README.md)**: Complete gateway documentation
+- **[Docker Guide](apps/mcp-gateway/DOCKER.md)**: Container deployment guide
+- **[Next.js App](apps/mcp-chat-app/README.md)**: Frontend application docs
+- **[Nx Documentation](https://nx.dev)**: Monorepo tooling
+
+## 🤝 Contributing
+
+1. **Fork the repository**
+2. **Create feature branch**: `git checkout -b feature/amazing-feature`
+3. **Commit changes**: `git commit -m 'Add amazing feature'`
+4. **Push to branch**: `git push origin feature/amazing-feature`
+5. **Open Pull Request**
+
+### Development Guidelines
+- Follow existing code conventions
+- Add tests for new features
+- Update documentation
+- Ensure containers build successfully
+
+## 🏷️ License
+
+MIT License - see [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- **[Model Context Protocol](https://modelcontextprotocol.io/)**: For the MCP specification
+- **[Nx](https://nx.dev)**: For monorepo tooling and optimization
+- **[FastAPI](https://fastapi.tiangolo.com/)**: For the high-performance Python API
+- **[Next.js](https://nextjs.org/)**: For the React framework
+- **[@nx-tools/nx-container](https://github.com/gperdomor/nx-tools)**: For container integration
+
+---
+
+## 🚀 Legacy Components (Available but Superseded)
+
+This workspace also includes legacy components that demonstrate alternative approaches:
+
+### Legacy Projects
+- **`mcp-gateway-java`** - Java Spring Boot MCP gateway (superseded by Python gateway)
+- **Legacy database setup** - Individual database per service (superseded by centralized gateway database)
+
+### Legacy Commands
+```bash
+# Java gateway (legacy)
+pnpm mcp-gateway-java:serve
+
+# Legacy database setup
+npx nx run mcp-chat-app:db:push
+```
+
+The current architecture focuses on the Python gateway with centralized database management for optimal performance and simplicity.

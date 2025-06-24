@@ -1,4 +1,29 @@
-"""Database models and setup for MCP Gateway using SQLAlchemy."""
+"""Database models and setup for MCP Gateway using SQLAlchemy.
+
+This module defines the database schema and repository classes for the MCP Gateway.
+It provides a complete data layer for chat history, user management, and MCP server
+configurations using PostgreSQL as the primary database.
+
+Key Components:
+- SQLAlchemy models for all data entities
+- Repository pattern for data access
+- Database connection management with retry logic
+- Support for both SQLite (development) and PostgreSQL (production)
+
+Models:
+- User: User accounts and authentication
+- Session: JWT session management  
+- Project: Optional chat organization
+- ChatThread: Chat conversation containers
+- ChatMessage: Individual messages with rich content
+- MCPServer: MCP server configurations
+
+The database automatically handles:
+- UUID primary keys for all entities
+- Timestamps for creation and updates
+- Foreign key relationships and cascading deletes
+- JSON columns for flexible data storage
+"""
 
 import os
 from datetime import datetime

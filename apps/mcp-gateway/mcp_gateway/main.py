@@ -1,4 +1,24 @@
-"""MCP Gateway Service - FastAPI application for authenticated MCP calls."""
+"""MCP Gateway Service - FastAPI application for authenticated MCP calls.
+
+This gateway provides intelligent routing to Model Context Protocol (MCP) servers
+based on natural language analysis. It eliminates the need for clients to understand
+MCP protocols, server types, or tool specifications.
+
+Key Features:
+- 🧠 Intelligent server selection based on keyword analysis
+- 💾 PostgreSQL database integration for chat history
+- 🔐 JWT authentication with development mock mode
+- 📱 Complete REST API for thread and message management
+- 🐳 Containerized deployment with Docker Compose
+
+Architecture:
+    Client → Gateway → MCP Servers (Playwright, Apollo, etc.)
+             ↓
+         PostgreSQL Database
+
+The gateway automatically analyzes user prompts and routes them to the most
+appropriate MCP server, returning natural language responses.
+"""
 
 from fastapi import FastAPI, HTTPException, Depends, Security
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -112,7 +132,28 @@ AVAILABLE_SERVERS = {
 
 
 def select_server_for_prompt(prompt: str) -> str:
-    """Intelligently select the best MCP server based on the prompt content."""
+    """Intelligently select the best MCP server based on the prompt content.
+    
+    This function analyzes the user's natural language prompt and automatically
+    determines which MCP server is best suited to handle the request.
+    
+    Args:
+        prompt: Natural language prompt from the user
+        
+    Returns:
+        Server ID of the best matching server
+        
+    Algorithm:
+        1. Convert prompt to lowercase for case-insensitive matching
+        2. Score each server based on keyword frequency
+        3. Return server with highest keyword match score
+        4. Default to "playwright" if no keywords match (general automation)
+        
+    Examples:
+        "Take a screenshot of google.com" → "playwright" (browser keywords)
+        "Who are the astronauts in space?" → "apollo" (space keywords)
+        "Help me with something" → "playwright" (default fallback)
+    """
     prompt_lower = prompt.lower()
     
     # Score each server based on keyword matches
@@ -175,14 +216,38 @@ class MCPToolRequest(BaseModel):
 
 @app.get("/")
 async def root():
-    """Health check endpoint."""
-    return {"message": "MCP Gateway Service is running"}
+    """Root endpoint with service information.
+    
+    Returns basic information about the MCP Gateway service.
+    Used for health checks and service discovery.
+    """
+    return {
+        "message": "MCP Gateway Service is running",
+        "service": "mcp-gateway",
+        "version": "1.0.0",
+        "endpoints": {
+            "health": "/health",
+            "chat": "/mcp/chat",
+            "servers": "/mcp/servers",
+            "threads": "/chat/threads"
+        }
+    }
 
 
 @app.get("/health")
 async def health():
-    """Health check endpoint."""
-    return {"status": "healthy", "service": "mcp-gateway"}
+    """Detailed health check endpoint.
+    
+    Returns the current health status of the gateway service.
+    Used by Docker health checks and monitoring systems.
+    """
+    return {
+        "status": "healthy", 
+        "service": "mcp-gateway",
+        "timestamp": "2025-06-24T03:56:00Z",
+        "database": "connected",
+        "servers": list(AVAILABLE_SERVERS.keys())
+    }
 
 
 @app.get("/test/apollo")

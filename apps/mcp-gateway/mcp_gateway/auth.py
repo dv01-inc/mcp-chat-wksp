@@ -1,4 +1,23 @@
-"""Authentication module for MCP Gateway."""
+"""Authentication module for MCP Gateway.
+
+This module provides JWT-based authentication with development-friendly mock auth.
+It supports both production JWT tokens and development mock tokens for easy testing.
+
+Features:
+- JWT token creation and verification
+- Password hashing with bcrypt
+- Development mock authentication
+- Automatic environment detection
+- User information extraction from tokens
+
+The authentication system automatically switches between:
+- Production mode: Full JWT validation with secret keys
+- Development mode: Mock tokens accepted for testing (ENVIRONMENT=development)
+
+Mock Authentication:
+When ENVIRONMENT=development, the system accepts 'mock-token' and automatically
+creates a test user with UUID: 550e8400-e29b-41d4-a716-446655440000
+"""
 
 import os
 from typing import Dict, Any
