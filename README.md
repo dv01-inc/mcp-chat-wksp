@@ -45,21 +45,65 @@ This workspace demonstrates a complete **"dumb client"** architecture where:
 pnpm install
 ```
 
-### 2. Start All Services
+### 2. Configure Environment
 ```bash
-# Start containerized gateway with PostgreSQL
+# Set up Kong helper for DV01 auth
+cd tools/localhost-kong-helper
+cp example.env .env
+# Edit .env with your DV01 credentials
+
+# Set up AI service for Kong auth
+cd apps/ai-service
+cp .env.example .env
+# Edit .env to set USE_KONG_AUTH=true
+
+# Set up Next.js for DV01 auth
+cd apps/mcp-chat-app
+cp .env.local.example .env.local
+```
+
+### 3. Install Dependencies
+```bash
+# Install Kong helper dependencies
+pnpm kong-helper:install
+
+# Install workspace dependencies
+pnpm install
+```
+
+### 4. Start All Services
+
+**Option A: With DV01 Auth (Recommended)**
+```bash
+# Starts Kong helper + AI service + Next.js
+pnpm dev:with-auth
+```
+
+**Option B: Full Stack with MCP Servers**
+```bash
+# Starts everything including MCP servers
+pnpm dev:full-stack
+```
+
+**Option C: Manual Setup**
+```bash
+# Start containerized AI service with PostgreSQL
 pnpm containers:up
+
+# Start Kong helper for auth simulation
+pnpm kong-helper:serve
 
 # Start Next.js app
 pnpm dev
 
-# Start MCP servers
+# Start MCP servers (optional)
 pnpm playwright-mcp:serve    # Browser automation
 pnpm apollo-mcp:serve        # Space data
 ```
 
-### 3. Open Application
+### 5. Open Application
 - **Chat App**: http://localhost:3000
+- **Kong Helper**: http://localhost:3001
 - **AI Service API**: http://localhost:8000
 - **Health Check**: http://localhost:8000/health
 
@@ -85,10 +129,53 @@ mcp-chat-workspace/
 │   ├── playwright-mcp/        # Browser automation server
 │   └── apollo-mcp/            # Space data server
 │
+├── tools/
+│   └── localhost-kong-helper/ # DV01 Kong auth helper (submodule)
+│
 ├── package.json               # Workspace scripts
 ├── nx.json                    # Nx configuration
 └── README.md                  # This file
 ```
+
+## 🔐 DV01 Authentication Integration
+
+This workspace supports **DV01's enterprise authentication strategy** using Kong gateway integration:
+
+### **Authentication Flow**
+1. **Auth Shell Component**: Each app imports DV01's static web component for authentication
+2. **Kong Gateway**: All requests pass through Kong which adds user headers
+3. **Localhost Helper**: Simulates the Kong auth flow for local development
+4. **AI Service**: Extracts user info from Kong headers instead of JWT tokens
+
+### **Key Benefits**
+- **Unified Auth**: Same auth strategy across all DV01 applications
+- **No Direct Auth0**: Apps never call Auth0 directly - all through Kong
+- **Development Simulation**: Localhost helper mimics production auth flow
+- **Per-User Chat Tracking**: AI service tracks chats per authenticated user
+
+### **How It Works**
+
+```mermaid
+sequenceDiagram
+    participant Client as Next.js App
+    participant Kong as Kong Helper
+    participant AI as AI Service
+    participant Auth as DV01 Auth Shell
+    
+    Client->>Auth: Load auth shell component
+    Auth->>Kong: Authenticate user
+    Kong->>Kong: Add user headers
+    Client->>Kong: API request with session
+    Kong->>AI: Forward with user headers
+    AI->>AI: Extract user from headers
+    AI->>Client: Return personalized response
+```
+
+### **Kong Headers**
+The AI service expects these headers from Kong:
+- `currentuser`: Base64 encoded user JSON
+- `accesstoken`: OAuth access token
+- `currentorg`: Current organization ID
 
 ## 🛠️ Development Commands
 
@@ -108,6 +195,21 @@ pnpm containers:down
 
 # Restart with rebuild
 pnpm containers:restart
+```
+
+### DV01 Auth Development
+```bash
+# Install Kong helper dependencies
+pnpm kong-helper:install
+
+# Start Kong helper for auth simulation
+pnpm kong-helper:serve
+
+# Start with DV01 auth (recommended)
+pnpm dev:with-auth
+
+# Start full stack with all MCP servers
+pnpm dev:full-stack
 ```
 
 ### Application Development

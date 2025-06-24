@@ -21,7 +21,7 @@ The service automatically analyzes user prompts, processes them with appropriate
 LLMs and tools, and returns intelligent natural language responses.
 """
 
-from fastapi import FastAPI, HTTPException, Depends, Security
+from fastapi import FastAPI, HTTPException, Depends, Security, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -32,7 +32,7 @@ from dotenv import load_dotenv
 from sqlalchemy.orm import Session
 
 from .mcp_client import MCPClient
-from .auth import verify_token
+from .auth import verify_token, KongAuth
 from .database import get_db, ChatRepository, UserRepository, create_tables
 
 # Load environment variables
@@ -97,6 +97,25 @@ app.add_middleware(
 
 # Security
 security = HTTPBearer()
+
+# Flexible authentication for both JWT and Kong
+def get_user_info(request: Request, credentials: Optional[HTTPAuthorizationCredentials] = Security(security, auto_error=False)) -> Dict[str, Any]:
+    """Get user information from either Kong headers or JWT token."""
+    
+    # Check if we're using Kong authentication
+    if os.getenv("USE_KONG_AUTH") == "true":
+        headers = dict(request.headers)
+        user_info = KongAuth.extract_user_from_headers(headers)
+        if user_info:
+            return user_info
+        else:
+            raise HTTPException(status_code=401, detail="No user information in Kong headers")
+    
+    # Fallback to JWT authentication
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Authorization header required")
+    
+    return verify_token(credentials.credentials)
 
 # Global MCP client instances
 mcp_clients: Dict[str, MCPClient] = {}
@@ -408,19 +427,19 @@ async def test_apollo_mcp_query():
 
 @app.post("/mcp/query", response_model=MCPResponse)
 async def intelligent_mcp_query(
-    request: MCPRequest,
-    credentials: HTTPAuthorizationCredentials = Security(security)
+    mcp_request: MCPRequest,
+    request: Request
 ):
     """Execute an intelligent MCP query - automatically selects best server."""
     try:
-        # Verify the JWT token
-        user_info = verify_token(credentials.credentials)
+        # Get user info from Kong headers or JWT token
+        user_info = get_user_info(request)
         
         # 🧠 INTELLIGENT SERVER SELECTION
-        selected_server_id = select_server_for_prompt(request.prompt)
+        selected_server_id = select_server_for_prompt(mcp_request.prompt)
         server_url = get_server_url(selected_server_id)
         
-        print(f"🧠 Intelligent routing: '{request.prompt}' → {selected_server_id} server")
+        print(f"🧠 Intelligent routing: '{mcp_request.prompt}' → {selected_server_id} server")
         
         # Create MCP client key based on selected server
         client_key = f"{server_url}:{user_info.get('sub', 'anonymous')}"
@@ -428,9 +447,9 @@ async def intelligent_mcp_query(
         # Get or create MCP client for the selected server
         if client_key not in mcp_clients:
             mcp_clients[client_key] = MCPClient(
-                model_name=request.model_name,
+                model_name=mcp_request.model_name,
                 mcp_server_url=server_url,
-                system_prompt=request.system_prompt
+                system_prompt=mcp_request.system_prompt
             )
         
         client = mcp_clients[client_key]
@@ -443,7 +462,7 @@ async def intelligent_mcp_query(
         }
         
         # Execute the query
-        result = await client.run(request.prompt, headers=headers)
+        result = await client.run(mcp_request.prompt, headers=headers)
         
         usage_info = None
         if hasattr(result, 'usage'):
@@ -469,31 +488,31 @@ async def intelligent_mcp_query(
 
 @app.post("/mcp/chat", response_model=MCPResponse)
 async def intelligent_mcp_chat(
-    request: MCPRequest,
-    credentials: HTTPAuthorizationCredentials = Security(security),
+    mcp_request: MCPRequest,
+    request: Request,
     db: Session = Depends(get_db)
 ):
     """Execute an intelligent MCP chat - automatically selects best server and tools."""
     try:
-        # Verify the JWT token
-        user_info = verify_token(credentials.credentials)
+        # Get user info from Kong headers or JWT token
+        user_info = get_user_info(request)
         user_id = user_info.get("sub")
         
         if not user_id:
-            raise HTTPException(status_code=401, detail="Invalid user token")
+            raise HTTPException(status_code=401, detail="Invalid user information")
         
         # 🧠 INTELLIGENT SERVER SELECTION
-        # Gateway analyzes the prompt and selects the best server automatically
-        selected_server_id = select_server_for_prompt(request.prompt)
+        # AI Service analyzes the prompt and selects the best server automatically
+        selected_server_id = select_server_for_prompt(mcp_request.prompt)
         server_url = get_server_url(selected_server_id)
         
-        print(f"🧠 Intelligent routing: '{request.prompt}' → {selected_server_id} server")
+        print(f"🧠 Intelligent routing: '{mcp_request.prompt}' → {selected_server_id} server")
         
         # Initialize chat repository
         chat_repo = ChatRepository(db)
         
         # Handle thread creation/retrieval if thread_id provided
-        thread_id = request.thread_id
+        thread_id = mcp_request.thread_id
         if thread_id:
             # Verify thread exists and belongs to user
             thread = chat_repo.get_thread(thread_id, user_id)
@@ -501,12 +520,12 @@ async def intelligent_mcp_chat(
                 raise HTTPException(status_code=404, detail="Thread not found")
         
         # Save user message if message_id provided
-        if request.message_id and thread_id:
+        if mcp_request.message_id and thread_id:
             chat_repo.upsert_message(
                 thread_id=thread_id,
-                message_id=request.message_id,
+                message_id=mcp_request.message_id,
                 role="user",
-                parts=[{"type": "text", "text": request.prompt}],
+                parts=[{"type": "text", "text": mcp_request.prompt}],
                 attachments=[],
                 annotations=[]
             )
@@ -527,9 +546,9 @@ async def intelligent_mcp_chat(
             )
             
             mcp_clients[client_key] = MCPClient(
-                model_name=request.model_name,
+                model_name=mcp_request.model_name,
                 mcp_server_url=server_url,
-                system_prompt=request.system_prompt or enhanced_system_prompt
+                system_prompt=mcp_request.system_prompt or enhanced_system_prompt
             )
         
         client = mcp_clients[client_key]
@@ -542,7 +561,7 @@ async def intelligent_mcp_chat(
         }
         
         # Execute the intelligent chat
-        result = await client.chat(request.prompt, headers=headers)
+        result = await client.chat(mcp_request.prompt, headers=headers)
         
         # Extract usage information
         usage_info = None
@@ -575,7 +594,7 @@ async def intelligent_mcp_chat(
                     "selected_server": selected_server_id,
                     "usage": usage_info
                 }],
-                model=request.model_name
+                model=mcp_request.model_name
             )
         
         response_data = {

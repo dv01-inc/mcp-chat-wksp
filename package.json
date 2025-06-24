@@ -32,6 +32,8 @@
     "containers:logs": "nx run-many --target=container-logs",
     "kong-helper:install": "nx run localhost-kong-helper:install",
     "kong-helper:serve": "nx run localhost-kong-helper:serve",
+    "dev:with-auth": "concurrently \"pnpm kong-helper:serve\" \"pnpm containers:up\" \"pnpm dev\"",
+    "dev:full-stack": "concurrently \"pnpm kong-helper:serve\" \"pnpm containers:up\" \"pnpm playwright-mcp:serve\" \"pnpm apollo-mcp:serve\" \"pnpm dev\"",
     "prepare": "husky"
   },
   "devDependencies": {
@@ -41,6 +43,7 @@
     "@nx/workspace": "21.2.1",
     "@nxlv/python": "^21.0.3",
     "@nxrocks/nx-spring-boot": "^11.0.1",
+    "concurrently": "^8.2.2",
     "husky": "^9.1.7",
     "lint-staged": "^16.1.0",
     "nx": "21.2.1",

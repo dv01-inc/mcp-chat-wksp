@@ -1,22 +1,28 @@
-"""Authentication module for MCP Gateway.
+"""Authentication module for AI Service.
 
-This module provides JWT-based authentication with development-friendly mock auth.
-It supports both production JWT tokens and development mock tokens for easy testing.
+This module provides multiple authentication strategies:
+- JWT-based authentication for direct API access
+- Kong gateway authentication for DV01 integration
+- Development mock authentication for testing
 
 Features:
 - JWT token creation and verification
+- Kong header parsing for DV01 auth
 - Password hashing with bcrypt
 - Development mock authentication
 - Automatic environment detection
-- User information extraction from tokens
+- User information extraction from tokens/headers
 
 The authentication system automatically switches between:
 - Production mode: Full JWT validation with secret keys
+- Kong mode: Parse user info from Kong headers (USE_KONG_AUTH=true)
 - Development mode: Mock tokens accepted for testing (ENVIRONMENT=development)
 
-Mock Authentication:
-When ENVIRONMENT=development, the system accepts 'mock-token' and automatically
-creates a test user with UUID: 550e8400-e29b-41d4-a716-446655440000
+Kong Authentication:
+When USE_KONG_AUTH=true, the system extracts user info from Kong headers:
+- currentuser: Base64 encoded user JSON or plain user ID
+- accesstoken: OAuth access token
+- currentorg: Current organization ID
 """
 
 import os
@@ -93,6 +99,42 @@ class MockAuth:
             }
         else:
             return verify_token(token)
+
+
+class KongAuth:
+    """Kong gateway authentication for DV01 integration."""
+    
+    @staticmethod
+    def extract_user_from_headers(headers: Dict[str, str]) -> Dict[str, Any]:
+        """Extract user info from Kong headers."""
+        current_user = headers.get("currentuser")
+        access_token = headers.get("accesstoken") 
+        current_org = headers.get("currentorg")
+        
+        if current_user:
+            # Parse currentuser header (usually base64 encoded JSON)
+            try:
+                import json
+                import base64
+                user_data = json.loads(base64.b64decode(current_user).decode())
+                return {
+                    "sub": user_data.get("id") or user_data.get("sub") or user_data.get("userId"),
+                    "email": user_data.get("email"),
+                    "name": user_data.get("name") or user_data.get("fullName"),
+                    "org": current_org,
+                    "access_token": access_token
+                }
+            except Exception:
+                # Fallback if header format is different - treat as plain user ID
+                return {
+                    "sub": current_user,
+                    "email": f"{current_user}@dv01.co",
+                    "name": current_user,
+                    "org": current_org,
+                    "access_token": access_token
+                }
+        
+        return None
 
 
 # Use mock auth in development
