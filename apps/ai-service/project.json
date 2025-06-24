@@ -1,8 +1,8 @@
 {
-  "name": "mcp-gateway",
+  "name": "ai-service",
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "projectType": "application",
-  "sourceRoot": "apps/mcp-gateway/mcp_gateway",
+  "sourceRoot": "apps/ai-service/mcp_gateway",
   "targets": {
     "lock": {
       "executor": "@nxlv/python:lock",
@@ -94,7 +94,7 @@
       "options": {
         "engine": "docker",
         "metadata": {
-          "images": ["mcp-gateway"],
+          "images": ["ai-service"],
           "tags": [
             "type=ref,event=branch",
             "type=ref,event=pr", 

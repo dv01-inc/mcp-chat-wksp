@@ -6,7 +6,7 @@ A modern, intelligent chat application workspace built with **Next.js** and powe
 
 This workspace demonstrates a complete **"dumb client"** architecture where:
 - **Next.js app** handles only UI and user experience
-- **MCP Gateway** manages all AI/LLM processing and tool orchestration
+- **AI Service** manages all LLM processing, database operations, and tool orchestration
 - **Intelligent routing** automatically selects the best tools for each user request
 - **Containerized deployment** with Docker and PostgreSQL
 
@@ -14,7 +14,7 @@ This workspace demonstrates a complete **"dumb client"** architecture where:
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Next.js App   │────│   MCP Gateway   │────│   PostgreSQL    │
+│   Next.js App   │────│   AI Service    │────│   PostgreSQL    │
 │  (Port 3000)    │    │  (Port 8000)    │    │  (Port 5433)    │
 │                 │    │                 │    │                 │
 │ • UI Components │    │ • Intelligent   │    │ • Chat History  │
@@ -60,7 +60,7 @@ pnpm apollo-mcp:serve        # Space data
 
 ### 3. Open Application
 - **Chat App**: http://localhost:3000
-- **Gateway API**: http://localhost:8000
+- **AI Service API**: http://localhost:8000
 - **Health Check**: http://localhost:8000/health
 
 ## 📁 Workspace Structure
@@ -75,11 +75,11 @@ mcp-chat-workspace/
 │   │   │   └── lib/           # Utilities
 │   │   └── package.json
 │   │
-│   ├── mcp-gateway/           # FastAPI intelligent gateway
-│   │   ├── mcp_gateway/       # Python source code
+│   ├── ai-service/             # FastAPI AI backend service
+│   │   ├── mcp_gateway/       # Python source code (legacy name)
 │   │   ├── Dockerfile         # Container definition
 │   │   ├── docker-compose.yml # Multi-service setup
-│   │   ├── README.md          # Detailed gateway docs
+│   │   ├── README.md          # Detailed service docs
 │   │   └── DOCKER.md          # Container deployment guide
 │   │
 │   ├── playwright-mcp/        # Browser automation server
@@ -140,22 +140,22 @@ pnpm apollo-mcp:serve
 pnpm playwright-mcp:build
 ```
 
-### Gateway Development
+### AI Service Development
 ```bash
-# Start gateway locally (for development)
-pnpm mcp-gateway:serve
+# Start AI service locally (for development)
+pnpm ai-service:serve
 
-# Run gateway tests
-pnpm mcp-gateway:test
+# Run AI service tests
+pnpm ai-service:test
 
-# Check gateway status
+# Check service status
 curl http://localhost:8000/health
 ```
 
 ## 🧠 Intelligent Features
 
 ### Automatic Server Selection
-The gateway automatically routes user requests to the best MCP server:
+The AI service automatically routes user requests to the best MCP server:
 
 **Browser Tasks** → Playwright Server
 - "Take a screenshot of google.com"
@@ -190,12 +190,12 @@ pnpm containers:up
 
 ### Using Docker Compose
 ```bash
-cd apps/mcp-gateway
+cd apps/ai-service
 docker-compose up -d
 ```
 
 ### Environment Variables
-Create `apps/mcp-gateway/.env`:
+Create `apps/ai-service/.env`:
 ```bash
 ANTHROPIC_API_KEY=your_anthropic_key
 OPENAI_API_KEY=your_openai_key
@@ -205,7 +205,7 @@ OPENAI_API_KEY=your_openai_key
 
 ### Health Checks
 ```bash
-# Gateway health
+# AI service health
 curl http://localhost:8000/health
 
 # Next.js app
@@ -220,8 +220,8 @@ pnpm containers:status
 # All container logs
 pnpm containers:logs
 
-# Gateway logs only
-docker-compose -f apps/mcp-gateway/docker-compose.yml logs -f gateway
+# AI service logs only
+docker-compose -f apps/ai-service/docker-compose.yml logs -f gateway
 
 # Next.js logs
 pnpm dev
@@ -230,9 +230,9 @@ pnpm dev
 ## 🎯 Key Benefits
 
 ### For Developers
-- **Zero MCP Complexity**: Next.js app has no MCP knowledge
+- **Zero AI Complexity**: Next.js app has no LLM or MCP knowledge
 - **Universal Integration**: Any client can integrate via simple HTTP APIs
-- **Intelligent Routing**: Gateway automatically selects optimal tools
+- **Intelligent Routing**: AI service automatically selects optimal LLMs and tools
 - **Containerized**: Easy deployment and scaling
 
 ### For Users
@@ -252,7 +252,7 @@ pnpm dev
 ### Adding New MCP Servers
 
 1. **Create Server**: Add to `apps/` directory
-2. **Configure Gateway**: Update `AVAILABLE_SERVERS` in gateway
+2. **Configure AI Service**: Update `AVAILABLE_SERVERS` in service
 3. **Add Keywords**: Define routing keywords for intelligent selection
 4. **Test Integration**: Verify routing with test prompts
 
@@ -284,7 +284,7 @@ pnpm test
 
 # Test specific projects
 nx test mcp-chat-app
-nx test mcp-gateway
+nx test ai-service
 ```
 
 ### Manual Testing
@@ -307,8 +307,8 @@ curl -X POST http://localhost:8000/mcp/chat \
 
 ## 📚 Documentation
 
-- **[Gateway README](apps/mcp-gateway/README.md)**: Complete gateway documentation
-- **[Docker Guide](apps/mcp-gateway/DOCKER.md)**: Container deployment guide
+- **[AI Service README](apps/ai-service/README.md)**: Complete service documentation
+- **[Docker Guide](apps/ai-service/DOCKER.md)**: Container deployment guide
 - **[Next.js App](apps/mcp-chat-app/README.md)**: Frontend application docs
 - **[Nx Documentation](https://nx.dev)**: Monorepo tooling
 
@@ -345,7 +345,7 @@ MIT License - see [LICENSE](LICENSE) file for details.
 This workspace also includes legacy components that demonstrate alternative approaches:
 
 ### Legacy Projects
-- **`mcp-gateway-java`** - Java Spring Boot MCP gateway (superseded by Python gateway)
+- **`mcp-gateway-java`** - Java Spring Boot MCP gateway (superseded by Python AI service)
 - **Legacy database setup** - Individual database per service (superseded by centralized gateway database)
 
 ### Legacy Commands
@@ -357,4 +357,4 @@ pnpm mcp-gateway-java:serve
 npx nx run mcp-chat-app:db:push
 ```
 
-The current architecture focuses on the Python gateway with centralized database management for optimal performance and simplicity.
+The current architecture focuses on the Python AI service with centralized database management for optimal performance and simplicity.

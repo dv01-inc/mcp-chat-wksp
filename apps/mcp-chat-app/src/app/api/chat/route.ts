@@ -1,13 +1,13 @@
 /**
- * Gateway-only chat route
- * All LLM processing is handled by the MCP Gateway
+ * AI Service chat route
+ * All LLM processing is handled by the AI Service
  */
 
 import { getSession } from "auth/server";
 import logger from "logger";
 import { chatApiSchemaRequestBodySchema } from "app-types/chat";
 
-const GATEWAY_URL = process.env.NEXT_PUBLIC_MCP_GATEWAY_URL || 'http://localhost:8000';
+const AI_SERVICE_URL = process.env.NEXT_PUBLIC_AI_SERVICE_URL || process.env.NEXT_PUBLIC_MCP_GATEWAY_URL || 'http://localhost:8000';
 const AUTH_TOKEN = process.env.NEXT_PUBLIC_MCP_AUTH_TOKEN || 'mock-token';
 
 export async function POST(request: Request) {
@@ -103,22 +103,22 @@ export async function POST(request: Request) {
         model_name: mappedModel,
         thread_id: id,
         message_id: message.id,
-        // Gateway handles everything: server selection, tool choice, and chat history!
+        // AI Service handles everything: LLM processing, server selection, tool choice, and chat history!
       }),
     });
 
-    if (!gatewayResponse.ok) {
-      const errorText = await gatewayResponse.text();
-      throw new Error(`Gateway request failed: ${gatewayResponse.status} - ${errorText}`);
+    if (!aiServiceResponse.ok) {
+      const errorText = await aiServiceResponse.text();
+      throw new Error(`AI Service request failed: ${aiServiceResponse.status} - ${errorText}`);
     }
 
-    const gatewayResult = await gatewayResponse.json();
+    const aiServiceResult = await aiServiceResponse.json();
 
-    if (gatewayResult.error) {
-      throw new Error(gatewayResult.error);
+    if (aiServiceResult.error) {
+      throw new Error(aiServiceResult.error);
     }
 
-    // Gateway has saved both user and assistant messages
+    // AI Service has saved both user and assistant messages
     // We just need to return the streaming response with the assistant message content
 
     // Return AI SDK compatible streaming response
@@ -127,7 +127,7 @@ export async function POST(request: Request) {
     const stream = new ReadableStream({
       start(controller) {
         try {
-          const text = gatewayResult.result;
+          const text = aiServiceResult.result;
           
           // Send text in chunks (simulating streaming)
           const chunkSize = 10;
@@ -146,8 +146,8 @@ export async function POST(request: Request) {
             type: 'finish',
             finishReason: 'stop',
             usage: {
-              promptTokens: gatewayResult.usage?.prompt_tokens || 0,
-              completionTokens: gatewayResult.usage?.completion_tokens || 0,
+              promptTokens: aiServiceResult.usage?.prompt_tokens || 0,
+              completionTokens: aiServiceResult.usage?.completion_tokens || 0,
             },
           });
           controller.enqueue(encoder.encode(`0:${finishData}\n`));

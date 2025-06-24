@@ -1,23 +1,24 @@
-"""MCP Gateway Service - FastAPI application for authenticated MCP calls.
+"""AI Service - Comprehensive AI backend with intelligent MCP orchestration.
 
-This gateway provides intelligent routing to Model Context Protocol (MCP) servers
-based on natural language analysis. It eliminates the need for clients to understand
-MCP protocols, server types, or tool specifications.
+This service provides a complete AI backend that handles LLM communication,
+database management, and intelligent routing to specialized MCP servers.
+It eliminates the need for clients to understand AI/ML protocols.
 
 Key Features:
-- 🧠 Intelligent server selection based on keyword analysis
-- 💾 PostgreSQL database integration for chat history
+- 🧠 Intelligent MCP server selection based on natural language analysis
+- 🤖 Direct LLM integration (OpenAI, Anthropic) for AI processing
+- 💾 PostgreSQL database for persistent chat history and user management
 - 🔐 JWT authentication with development mock mode
-- 📱 Complete REST API for thread and message management
+- 📱 Complete REST API for chat, threads, and message management
 - 🐳 Containerized deployment with Docker Compose
 
 Architecture:
-    Client → Gateway → MCP Servers (Playwright, Apollo, etc.)
-             ↓
-         PostgreSQL Database
+    Client → AI Service → LLMs (OpenAI/Anthropic)
+                      → MCP Servers (Playwright, Apollo, etc.)
+                      → PostgreSQL Database
 
-The gateway automatically analyzes user prompts and routes them to the most
-appropriate MCP server, returning natural language responses.
+The service automatically analyzes user prompts, processes them with appropriate
+LLMs and tools, and returns intelligent natural language responses.
 """
 
 from fastapi import FastAPI, HTTPException, Depends, Security
@@ -40,8 +41,8 @@ if os.path.exists(load_env_path):
     load_dotenv(load_env_path)
 
 app = FastAPI(
-    title="MCP Gateway Service",
-    description="Gateway service for authenticated MCP calls",
+    title="AI Service",
+    description="Intelligent AI service with MCP orchestration, database management, and LLM integration",
     version="1.0.0"
 )
 
@@ -218,12 +219,12 @@ class MCPToolRequest(BaseModel):
 async def root():
     """Root endpoint with service information.
     
-    Returns basic information about the MCP Gateway service.
+    Returns basic information about the AI Service.
     Used for health checks and service discovery.
     """
     return {
-        "message": "MCP Gateway Service is running",
-        "service": "mcp-gateway",
+        "message": "AI Service is running",
+        "service": "ai-service",
         "version": "1.0.0",
         "endpoints": {
             "health": "/health",
@@ -238,12 +239,12 @@ async def root():
 async def health():
     """Detailed health check endpoint.
     
-    Returns the current health status of the gateway service.
+    Returns the current health status of the AI service.
     Used by Docker health checks and monitoring systems.
     """
     return {
         "status": "healthy", 
-        "service": "mcp-gateway",
+        "service": "ai-service",
         "timestamp": "2025-06-24T03:56:00Z",
         "database": "connected",
         "servers": list(AVAILABLE_SERVERS.keys())

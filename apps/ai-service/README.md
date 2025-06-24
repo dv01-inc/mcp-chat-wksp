@@ -1,13 +1,15 @@
-# 🧠 Intelligent MCP Gateway
+# 🤖 AI Service
 
-A containerized FastAPI gateway service that provides intelligent routing to Model Context Protocol (MCP) servers with comprehensive chat history management.
+A comprehensive AI backend service that handles LLM communication, database management, and intelligent MCP server orchestration for building AI-powered applications.
 
 ## 🌟 Overview
 
-The **Intelligent MCP Gateway** serves as a centralized hub that:
-- **🧠 Intelligently routes** user prompts to the most appropriate MCP server based on keyword analysis
-- **💾 Manages chat history** with PostgreSQL database integration
-- **🔐 Provides authentication** with JWT tokens and development mock auth
+The **AI Service** serves as a complete AI backend that:
+- **🧠 Intelligently routes** user prompts to appropriate LLMs and MCP servers based on natural language analysis
+- **🤖 Processes AI requests** with direct LLM integration (OpenAI, Anthropic)
+- **💾 Manages persistent data** with PostgreSQL for chat history, users, and sessions
+- **🔐 Handles authentication** with JWT tokens and development mock auth
+- **🛠️ Orchestrates specialized tools** through MCP server integration
 - **📱 Offers REST APIs** for complete chat thread and message management
 - **🐳 Runs containerized** with Docker and docker-compose for easy deployment
 - **🗣️ Natural Language Only**: No tool names, server IDs, or technical knowledge required
