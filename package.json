@@ -25,6 +25,11 @@
     "playwright-mcp:serve": "nx run playwright-mcp:mcp-server",
     "apollo-mcp:serve": "nx run apollo-mcp:serve",
     "apollo-mcp:serve-rover": "nx run apollo-mcp:serve-rover",
+    "containers:up": "nx run-many --target=container-up",
+    "containers:down": "nx run-many --target=container-down",
+    "containers:restart": "nx run-many --target=container-restart",
+    "containers:status": "nx run-many --target=container-status",
+    "containers:logs": "nx run-many --target=container-logs",
     "prepare": "husky"
   },
   "devDependencies": {

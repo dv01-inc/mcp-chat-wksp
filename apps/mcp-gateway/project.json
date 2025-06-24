@@ -103,6 +103,41 @@
           ]
         }
       }
+    },
+    "container-up": {
+      "executor": "@nxlv/python:run-commands",
+      "options": {
+        "command": "docker-compose up -d --build",
+        "cwd": "{projectRoot}"
+      }
+    },
+    "container-down": {
+      "executor": "@nxlv/python:run-commands",
+      "options": {
+        "command": "docker-compose down",
+        "cwd": "{projectRoot}"
+      }
+    },
+    "container-restart": {
+      "executor": "@nxlv/python:run-commands",
+      "options": {
+        "command": "docker-compose up -d --build --force-recreate",
+        "cwd": "{projectRoot}"
+      }
+    },
+    "container-logs": {
+      "executor": "@nxlv/python:run-commands",
+      "options": {
+        "command": "docker-compose logs -f",
+        "cwd": "{projectRoot}"
+      }
+    },
+    "container-status": {
+      "executor": "@nxlv/python:run-commands",
+      "options": {
+        "command": "docker-compose ps",
+        "cwd": "{projectRoot}"
+      }
     }
   },
   "tags": [],
