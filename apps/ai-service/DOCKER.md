@@ -1,10 +1,10 @@
-# 🐳 Docker Guide for MCP Gateway
+# 🐳 Container Guide for AI Service
 
-Complete guide for containerizing and deploying the MCP Gateway with PostgreSQL.
+Complete guide for containerizing and deploying the AI Service with PostgreSQL using Podman or Docker.
 
 ## 📋 Overview
 
-The MCP Gateway is fully containerized using Docker and Docker Compose with:
+The AI Service is fully containerized using Podman Compose (or Docker Compose) with:
 - **Gateway Service**: FastAPI application with intelligent MCP routing
 - **PostgreSQL Database**: Persistent chat history and user data
 - **Health Checks**: Built-in monitoring and retry logic

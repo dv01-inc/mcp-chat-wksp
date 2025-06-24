@@ -17,7 +17,7 @@ services:
       timeout: 5s
       retries: 5
 
-  gateway:
+  ai-service:
     build: .
     environment:
       DATABASE_URL: postgresql://mcp_user:mcp_password@postgres:5432/mcp_gateway

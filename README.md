@@ -37,7 +37,7 @@ This workspace demonstrates a complete **"dumb client"** architecture where:
 
 ### Prerequisites
 - Node.js 18+
-- Docker and Docker Compose
+- Podman and Podman Compose (or Docker/Docker Compose)
 - pnpm (recommended) or npm
 
 ### 1. Install Dependencies
@@ -286,14 +286,20 @@ const response = await fetch('/api/chat', {
 
 ### Using Nx (Recommended)
 ```bash
-# Single command to start everything
+# Single command to start everything with Podman
 pnpm containers:up
 ```
 
-### Using Docker Compose
+### Using Podman Compose
 ```bash
 cd apps/ai-service
-docker-compose up -d
+podman compose up -d
+```
+
+### Using Docker Compose (Alternative)
+```bash
+cd apps/ai-service
+docker compose up -d
 ```
 
 ### Environment Variables
@@ -323,7 +329,7 @@ pnpm containers:status
 pnpm containers:logs
 
 # AI service logs only
-docker-compose -f apps/ai-service/docker-compose.yml logs -f gateway
+podman compose -f apps/ai-service/docker-compose.yml logs -f ai-service
 
 # Next.js logs
 pnpm dev

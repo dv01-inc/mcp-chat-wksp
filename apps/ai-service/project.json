@@ -92,7 +92,7 @@
     "container": {
       "executor": "@nx-tools/nx-container:build",
       "options": {
-        "engine": "docker",
+        "engine": "podman",
         "metadata": {
           "images": ["ai-service"],
           "tags": [
@@ -107,35 +107,35 @@
     "container-up": {
       "executor": "@nxlv/python:run-commands",
       "options": {
-        "command": "docker-compose up -d --build",
+        "command": "podman compose up -d --build",
         "cwd": "{projectRoot}"
       }
     },
     "container-down": {
       "executor": "@nxlv/python:run-commands",
       "options": {
-        "command": "docker-compose down",
+        "command": "podman compose down",
         "cwd": "{projectRoot}"
       }
     },
     "container-restart": {
       "executor": "@nxlv/python:run-commands",
       "options": {
-        "command": "docker-compose up -d --build --force-recreate",
+        "command": "podman compose up -d --build --force-recreate",
         "cwd": "{projectRoot}"
       }
     },
     "container-logs": {
       "executor": "@nxlv/python:run-commands",
       "options": {
-        "command": "docker-compose logs -f",
+        "command": "podman compose logs -f",
         "cwd": "{projectRoot}"
       }
     },
     "container-status": {
       "executor": "@nxlv/python:run-commands",
       "options": {
-        "command": "docker-compose ps",
+        "command": "podman compose ps",
         "cwd": "{projectRoot}"
       }
     }
