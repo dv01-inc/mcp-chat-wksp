@@ -88,6 +88,21 @@
         "command": "uv run uvicorn mcp_gateway.main:app --reload --host 0.0.0.0 --port 8000",
         "cwd": "{projectRoot}"
       }
+    },
+    "container": {
+      "executor": "@nx-tools/nx-container:build",
+      "options": {
+        "engine": "docker",
+        "metadata": {
+          "images": ["mcp-gateway"],
+          "tags": [
+            "type=ref,event=branch",
+            "type=ref,event=pr", 
+            "type=semver,pattern={{version}}",
+            "type=semver,pattern={{major}}.{{minor}}"
+          ]
+        }
+      }
     }
   },
   "tags": [],

@@ -63,6 +63,13 @@
         "buildImageTargetName": "build-image",
         "buildInfoTargetName": "build-info"
       }
+    },
+    {
+      "plugin": "@nx-tools/nx-container",
+      "options": {
+        "defaultEngine": "docker",
+        "defaultRegistry": "docker.io"
+      }
     }
   ],
   "generators": {

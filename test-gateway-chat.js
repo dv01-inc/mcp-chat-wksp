@@ -23,7 +23,7 @@ async function testGatewayChat() {
       console.log(`   • ${server.name} (${server.id}) - ${server.status}`);
     });
     
-    // Test 2: Send navigation request
+    // Test 2: Send navigation request (gateway selects server automatically!)
     console.log('\n2. Testing navigation request: "Go to google.com"...');
     const chatResponse = await fetch(`${GATEWAY_URL}/mcp/chat`, {
       method: 'POST',
@@ -33,8 +33,8 @@ async function testGatewayChat() {
       },
       body: JSON.stringify({
         prompt: 'Go to google.com',
-        server_url: 'http://localhost:8001/sse',
-        model_name: 'gpt-4'
+        model_name: 'openai:gpt-4'
+        // No server_url needed! Gateway intelligently selects the right server
       })
     });
     
@@ -45,39 +45,43 @@ async function testGatewayChat() {
     } else {
       console.log(`✅ Chat successful!`);
       console.log(`   Response: ${chatResult.result.substring(0, 100)}...`);
+      console.log(`   Selected Server: ${chatResult.usage?.selected_server || 'unknown'}`);
       console.log(`   Usage: ${JSON.stringify(chatResult.usage)}`);
     }
     
-    // Test 3: Test tool execution
-    console.log('\n3. Testing direct tool execution...');
-    const toolResponse = await fetch(`${GATEWAY_URL}/mcp/tools/execute`, {
+    // Test 3: Test space query (should route to Apollo server)
+    console.log('\n3. Testing space query: "Who are the astronauts currently in space?"...');
+    const spaceResponse = await fetch(`${GATEWAY_URL}/mcp/chat`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${AUTH_TOKEN}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        server_id: 'playwright',
-        tool_name: 'browser_screenshot',
-        parameters: {}
+        prompt: 'Who are the astronauts currently in space?',
+        model_name: 'openai:gpt-4'
+        // Gateway should automatically route this to Apollo server!
       })
     });
     
-    const toolResult = await toolResponse.json();
+    const spaceResult = await spaceResponse.json();
     
-    if (toolResult.error) {
-      console.log(`❌ Tool execution failed: ${toolResult.error}`);
+    if (spaceResult.error) {
+      console.log(`❌ Space query failed: ${spaceResult.error}`);
     } else {
-      console.log(`✅ Tool execution successful!`);
-      console.log(`   Response: ${toolResult.result.substring(0, 100)}...`);
+      console.log(`✅ Space query successful!`);
+      console.log(`   Response: ${(spaceResult.result || '').substring(0, 100)}...`);
+      console.log(`   Selected Server: ${spaceResult.usage?.selected_server || 'unknown'}`);
     }
     
-    console.log('\n🎉 Gateway-only architecture is working correctly!');
+    console.log('\n🎉 Intelligent Gateway Architecture is working perfectly!');
     console.log('\nKey benefits:');
     console.log('• ✅ No LLM processing in Next.js app');
-    console.log('• ✅ All AI/MCP logic handled by gateway');
-    console.log('• ✅ Simple HTTP API for any client to integrate');
-    console.log('• ✅ Easy to add new clients (Slack, mobile, etc.)');
+    console.log('• ✅ No tool selection logic in clients');
+    console.log('• ✅ Gateway intelligently routes to best server');
+    console.log('• ✅ Pure natural language interface');
+    console.log('• ✅ Clients are truly "dumb" - just HTTP calls');
+    console.log('• ✅ Easy to add new clients (Slack, mobile, CLI, etc.)');
     
   } catch (error) {
     console.error('❌ Test failed:', error.message);

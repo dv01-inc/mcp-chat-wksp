@@ -4,7 +4,6 @@
  */
 
 import { getSession } from "auth/server";
-import { chatRepository } from "lib/db/repository";
 import logger from "logger";
 import { chatApiSchemaRequestBodySchema } from "app-types/chat";
 
@@ -28,22 +27,47 @@ export async function POST(request: Request) {
       projectId,
     } = chatApiSchemaRequestBodySchema.parse(json);
 
-    // Get or create thread
-    let thread = await chatRepository.selectThreadDetails(id);
-    
-    if (!thread) {
-      // Create new thread with simple title
-      const title = `Chat ${new Date().toLocaleDateString()}`;
-      const newThread = await chatRepository.insertThread({
-        id,
-        projectId: projectId ?? null,
-        title,
-        userId: session.user.id,
+    // Get or create thread via gateway
+    let thread;
+    try {
+      const threadResponse = await fetch(`${GATEWAY_URL}/chat/threads/${id}`, {
+        headers: {
+          'Authorization': `Bearer ${AUTH_TOKEN}`,
+        },
       });
-      thread = await chatRepository.selectThreadDetails(newThread.id);
+      
+      if (threadResponse.ok) {
+        thread = await threadResponse.json();
+      } else if (threadResponse.status === 404) {
+        // Create new thread
+        const title = `Chat ${new Date().toLocaleDateString()}`;
+        const createResponse = await fetch(`${GATEWAY_URL}/chat/threads`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${AUTH_TOKEN}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            thread_id: id,
+            title,
+            project_id: projectId ?? null,
+          }),
+        });
+        
+        if (!createResponse.ok) {
+          throw new Error(`Failed to create thread: ${createResponse.status}`);
+        }
+        
+        thread = await createResponse.json();
+      } else {
+        throw new Error(`Failed to get thread: ${threadResponse.status}`);
+      }
+    } catch (error: any) {
+      logger.error('Failed to handle thread:', error);
+      return new Response("Failed to handle thread", { status: 500 });
     }
 
-    if (thread!.userId !== session.user.id) {
+    if (thread.user_id !== session.user.id) {
       return new Response("Forbidden", { status: 403 });
     }
 
@@ -53,31 +77,21 @@ export async function POST(request: Request) {
       .map((part: any) => part.text)
       .join(' ');
 
-    // Save user message to database
-    await chatRepository.insertMessage({
-      threadId: thread!.id,
-      model: chatModel?.model ?? null,
-      role: "user",
-      parts: message.parts,
-      attachments: message.experimental_attachments,
-      id: message.id,
-      annotations: [],
-    });
+    // Map model names to proper format for Pydantic AI
+    const modelMapping: Record<string, string> = {
+      'gpt-4': 'openai:gpt-4',
+      'gpt-4o': 'openai:gpt-4o',
+      'gpt-4o-mini': 'openai:gpt-4o-mini',
+      '4o-mini': 'openai:gpt-4o-mini',
+      'gpt-3.5-turbo': 'openai:gpt-3.5-turbo',
+      'claude-3-5-sonnet-20241022': 'anthropic:claude-3-5-sonnet-20241022',
+      'claude-3-haiku-20240307': 'anthropic:claude-3-haiku-20240307',
+    };
 
-    // Determine which MCP server to use based on the message
-    let serverUrl = 'http://localhost:8001/sse'; // Default to Playwright
-    let serverId = 'playwright';
+    const rawModel = chatModel?.model || 'gpt-4';
+    const mappedModel = modelMapping[rawModel] || `openai:${rawModel}`;
 
-    // Simple keyword detection for server selection
-    if (userMessageText.toLowerCase().includes('space') || 
-        userMessageText.toLowerCase().includes('astronaut') ||
-        userMessageText.toLowerCase().includes('mission') ||
-        userMessageText.toLowerCase().includes('launch')) {
-      serverUrl = 'http://localhost:5001/mcp';
-      serverId = 'apollo';
-    }
-
-    // Send to MCP Gateway
+    // Send to intelligent MCP Gateway - it handles all tool selection and orchestration
     const gatewayResponse = await fetch(`${GATEWAY_URL}/mcp/chat`, {
       method: 'POST',
       headers: {
@@ -86,8 +100,10 @@ export async function POST(request: Request) {
       },
       body: JSON.stringify({
         prompt: userMessageText,
-        server_url: serverUrl,
-        model_name: chatModel?.model || 'gpt-4',
+        model_name: mappedModel,
+        thread_id: id,
+        message_id: message.id,
+        // Gateway handles everything: server selection, tool choice, and chat history!
       }),
     });
 
@@ -102,59 +118,44 @@ export async function POST(request: Request) {
       throw new Error(gatewayResult.error);
     }
 
-    // Create assistant message
-    const assistantMessageId = `assistant-${Date.now()}`;
-    const assistantMessage = {
-      id: assistantMessageId,
-      role: 'assistant' as const,
-      parts: [
-        {
-          type: 'text' as const,
-          text: gatewayResult.result,
-        }
-      ],
-      experimental_attachments: [],
-      annotations: [
-        {
-          type: 'gateway-response',
-          server_id: serverId,
-          server_url: serverUrl,
-          usage: gatewayResult.usage,
-        }
-      ],
-    };
+    // Gateway has saved both user and assistant messages
+    // We just need to return the streaming response with the assistant message content
 
-    // Save assistant message to database
-    await chatRepository.upsertMessage({
-      model: chatModel?.model ?? null,
-      threadId: thread!.id,
-      role: assistantMessage.role,
-      id: assistantMessage.id,
-      parts: assistantMessage.parts,
-      attachments: assistantMessage.experimental_attachments,
-      annotations: assistantMessage.annotations,
-    });
-
-    // Return streaming response format expected by the UI
+    // Return AI SDK compatible streaming response
+    // We need to format the response so useChat can process it
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       start(controller) {
-        // Send the assistant message
-        const messageData = JSON.stringify({
-          type: 'text-delta',
-          textDelta: gatewayResult.result,
-        });
-        controller.enqueue(encoder.encode(`0:${messageData}\n`));
+        try {
+          const text = gatewayResult.result;
+          
+          // Send text in chunks (simulating streaming)
+          const chunkSize = 10;
+          for (let i = 0; i < text.length; i += chunkSize) {
+            const chunk = text.slice(i, i + chunkSize);
+            // Format: "0:{\"type\":\"text-delta\",\"textDelta\":\"chunk\"}\n"
+            const data = JSON.stringify({
+              type: 'text-delta',
+              textDelta: chunk,
+            });
+            controller.enqueue(encoder.encode(`0:${data}\n`));
+          }
 
-        // Send finish event
-        const finishData = JSON.stringify({
-          type: 'finish',
-          finishReason: 'stop',
-          usage: gatewayResult.usage || { promptTokens: 0, completionTokens: 0 },
-        });
-        controller.enqueue(encoder.encode(`0:${finishData}\n`));
+          // Send finish event
+          const finishData = JSON.stringify({
+            type: 'finish',
+            finishReason: 'stop',
+            usage: {
+              promptTokens: gatewayResult.usage?.prompt_tokens || 0,
+              completionTokens: gatewayResult.usage?.completion_tokens || 0,
+            },
+          });
+          controller.enqueue(encoder.encode(`0:${finishData}\n`));
 
-        controller.close();
+          controller.close();
+        } catch (error) {
+          controller.error(error);
+        }
       },
     });
 

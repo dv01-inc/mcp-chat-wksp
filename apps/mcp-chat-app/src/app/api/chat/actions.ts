@@ -15,19 +15,34 @@ import {
 
 import type { ChatModel, ChatThread, Project } from "app-types/chat";
 
-import {
-  chatRepository,
-  mcpMcpToolCustomizationRepository,
-  mcpServerCustomizationRepository,
-} from "lib/db/repository";
+// Gateway-based chat actions - all database operations moved to gateway
 import { customModelProvider } from "lib/ai/models";
 import { toAny } from "lib/utils";
 import { McpServerCustomizationsPrompt, MCPToolInfo } from "app-types/mcp";
-import { serverCache } from "lib/cache";
-import { CacheKeys } from "lib/cache/cache-keys";
 import { getSession } from "auth/server";
 import logger from "logger";
 import { redirect } from "next/navigation";
+
+const GATEWAY_URL = process.env.NEXT_PUBLIC_MCP_GATEWAY_URL || 'http://localhost:8000';
+const AUTH_TOKEN = process.env.NEXT_PUBLIC_MCP_AUTH_TOKEN || 'mock-token';
+
+async function makeGatewayRequest(endpoint: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET', body?: any) {
+  const response = await fetch(`${GATEWAY_URL}${endpoint}`, {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${AUTH_TOKEN}`,
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Gateway request failed: ${response.status} - ${errorText}`);
+  }
+
+  return response.json();
+}
 
 export async function getUserId() {
   const session = await getSession();
@@ -57,55 +72,123 @@ export async function generateTitleFromUserMessageAction({
 
 export async function selectThreadWithMessagesAction(threadId: string) {
   const session = await getSession();
-  const thread = await chatRepository.selectThread(threadId);
-
-  if (!thread) {
-    logger.error("Thread not found", threadId);
+  
+  try {
+    const thread = await makeGatewayRequest(`/chat/threads/${threadId}`);
+    
+    if (thread.user_id !== session?.user.id) {
+      return redirect("/");
+    }
+    
+    return {
+      id: thread.id,
+      title: thread.title,
+      userId: thread.user_id,
+      projectId: thread.project_id,
+      createdAt: new Date(thread.created_at),
+      messages: thread.messages.map((msg: any) => ({
+        id: msg.id,
+        role: msg.role,
+        parts: msg.parts,
+        attachments: msg.attachments,
+        annotations: msg.annotations,
+        model: msg.model,
+        createdAt: new Date(msg.created_at),
+        threadId: thread.id
+      }))
+    };
+  } catch (error: any) {
+    logger.error("Thread not found", threadId, error);
     return redirect("/");
   }
-  if (thread.userId !== session?.user.id) {
-    return redirect("/");
-  }
-  const messages = await chatRepository.selectMessagesByThreadId(threadId);
-  return { ...thread, messages: messages ?? [] };
 }
 
 export async function deleteMessageAction(messageId: string) {
-  await chatRepository.deleteChatMessage(messageId);
+  // TODO: Implement message deletion in gateway
+  throw new Error("Message deletion not yet implemented in gateway");
 }
 
 export async function deleteThreadAction(threadId: string) {
-  await chatRepository.deleteThread(threadId);
+  try {
+    await makeGatewayRequest(`/chat/threads/${threadId}`, 'DELETE');
+  } catch (error: any) {
+    logger.error("Failed to delete thread", threadId, error);
+    throw error;
+  }
 }
 
 export async function deleteMessagesByChatIdAfterTimestampAction(
   messageId: string,
 ) {
   "use server";
-  await chatRepository.deleteMessagesByChatIdAfterTimestamp(messageId);
+  // TODO: Implement message deletion after timestamp in gateway
+  throw new Error("Message deletion after timestamp not yet implemented in gateway");
 }
 
 export async function selectThreadListByUserIdAction() {
-  const userId = await getUserId();
-  const threads = await chatRepository.selectThreadsByUserId(userId);
-  return threads;
+  try {
+    const response = await makeGatewayRequest('/chat/threads');
+    return response.threads.map((thread: any) => ({
+      id: thread.id,
+      title: thread.title,
+      userId: thread.user_id,
+      projectId: thread.project_id,
+      createdAt: new Date(thread.created_at),
+      lastMessageAt: thread.last_message_at ? new Date(thread.last_message_at).getTime() : 0
+    }));
+  } catch (error: any) {
+    logger.error("Failed to get threads", error);
+    return [];
+  }
 }
+
 export async function selectMessagesByThreadIdAction(threadId: string) {
-  const messages = await chatRepository.selectMessagesByThreadId(threadId);
-  return messages;
+  try {
+    const thread = await makeGatewayRequest(`/chat/threads/${threadId}`);
+    return thread.messages.map((msg: any) => ({
+      id: msg.id,
+      role: msg.role,
+      parts: msg.parts,
+      attachments: msg.attachments,
+      annotations: msg.annotations,
+      model: msg.model,
+      createdAt: new Date(msg.created_at),
+      threadId: threadId
+    }));
+  } catch (error: any) {
+    logger.error("Failed to get messages", threadId, error);
+    return [];
+  }
 }
 
 export async function updateThreadAction(
   id: string,
   thread: Partial<Omit<ChatThread, "createdAt" | "updatedAt" | "userId">>,
 ) {
-  const userId = await getUserId();
-  await chatRepository.updateThread(id, { ...thread, userId });
+  try {
+    await makeGatewayRequest(`/chat/threads/${id}`, 'PUT', {
+      title: thread.title,
+      project_id: thread.projectId
+    });
+  } catch (error: any) {
+    logger.error("Failed to update thread", id, error);
+    throw error;
+  }
 }
 
 export async function deleteThreadsAction() {
-  const userId = await getUserId();
-  await chatRepository.deleteAllThreads(userId);
+  try {
+    const response = await makeGatewayRequest('/chat/threads');
+    // Delete all threads one by one
+    await Promise.all(
+      response.threads.map((thread: any) => 
+        makeGatewayRequest(`/chat/threads/${thread.id}`, 'DELETE')
+      )
+    );
+  } catch (error: any) {
+    logger.error("Failed to delete all threads", error);
+    throw error;
+  }
 }
 
 export async function generateExampleToolSchemaAction(options: {
@@ -135,11 +218,11 @@ export async function generateExampleToolSchemaAction(options: {
 }
 
 export async function selectProjectListByUserIdAction() {
-  const userId = await getUserId();
-  const projects = await chatRepository.selectProjectsByUserId(userId);
-  return projects;
+  // TODO: Implement projects in gateway
+  return [];
 }
 
+// Project-related functions - TODO: Implement in gateway when needed
 export async function insertProjectAction({
   name,
   instructions,
@@ -147,15 +230,8 @@ export async function insertProjectAction({
   name: string;
   instructions?: Project["instructions"];
 }) {
-  const userId = await getUserId();
-  const project = await chatRepository.insertProject({
-    name,
-    userId,
-    instructions: instructions ?? {
-      systemPrompt: "",
-    },
-  });
-  return project;
+  // TODO: Implement projects in gateway
+  throw new Error("Projects not yet implemented in gateway");
 }
 
 export async function insertProjectWithThreadAction({
@@ -167,123 +243,56 @@ export async function insertProjectWithThreadAction({
   instructions?: Project["instructions"];
   threadId: string;
 }) {
-  const userId = await getUserId();
-  const project = await chatRepository.insertProject({
-    name,
-    userId,
-    instructions: instructions ?? {
-      systemPrompt: "",
-    },
-  });
-  await chatRepository.updateThread(threadId, {
-    projectId: project.id,
-  });
-  await serverCache.delete(CacheKeys.thread(threadId));
-  return project;
+  // TODO: Implement projects in gateway
+  throw new Error("Projects not yet implemented in gateway");
 }
 
 export async function selectProjectByIdAction(id: string) {
-  const project = await chatRepository.selectProjectById(id);
-  return project;
+  // TODO: Implement projects in gateway
+  return null;
 }
 
 export async function updateProjectAction(
   id: string,
   project: Partial<Pick<Project, "name" | "instructions">>,
 ) {
-  const updatedProject = await chatRepository.updateProject(id, project);
-  await serverCache.delete(CacheKeys.project(id));
-  return updatedProject;
+  // TODO: Implement projects in gateway
+  throw new Error("Projects not yet implemented in gateway");
 }
 
 export async function deleteProjectAction(id: string) {
-  await serverCache.delete(CacheKeys.project(id));
-  await chatRepository.deleteProject(id);
+  // TODO: Implement projects in gateway
+  throw new Error("Projects not yet implemented in gateway");
 }
 
 export async function rememberProjectInstructionsAction(
   projectId: string,
 ): Promise<Project["instructions"] | null> {
-  const key = CacheKeys.project(projectId);
-  const cachedProject = await serverCache.get<Project>(key);
-  if (cachedProject) {
-    return cachedProject.instructions;
-  }
-  const project = await chatRepository.selectProjectById(projectId);
-  if (!project) {
-    return null;
-  }
-  await serverCache.set(key, project);
-  return project.instructions;
+  // TODO: Implement projects in gateway
+  return null;
 }
 
 export async function rememberThreadAction(threadId: string) {
-  const key = CacheKeys.thread(threadId);
-  const cachedThread = await serverCache.get<ChatThread>(key);
-  if (cachedThread) {
-    return cachedThread;
-  }
-  const thread = await chatRepository.selectThread(threadId);
-  if (!thread) {
+  try {
+    const thread = await makeGatewayRequest(`/chat/threads/${threadId}`);
+    return {
+      id: thread.id,
+      title: thread.title,
+      userId: thread.user_id,
+      projectId: thread.project_id,
+      createdAt: new Date(thread.created_at)
+    };
+  } catch (error: any) {
     return null;
   }
-  await serverCache.set(key, thread);
-  return thread;
 }
 
 export async function updateProjectNameAction(id: string, name: string) {
-  const updatedProject = await chatRepository.updateProject(id, { name });
-  await serverCache.delete(CacheKeys.project(id));
-  return updatedProject;
+  // TODO: Implement projects in gateway
+  throw new Error("Projects not yet implemented in gateway");
 }
 
 export async function rememberMcpServerCustomizationsAction(userId: string) {
-  const key = CacheKeys.mcpServerCustomizations(userId);
-
-  const cachedMcpServerCustomizations =
-    await serverCache.get<Record<string, McpServerCustomizationsPrompt>>(key);
-  if (cachedMcpServerCustomizations) {
-    return cachedMcpServerCustomizations;
-  }
-
-  const mcpServerCustomizations =
-    await mcpServerCustomizationRepository.selectByUserId(userId);
-  const mcpToolCustomizations =
-    await mcpMcpToolCustomizationRepository.selectByUserId(userId);
-
-  const serverIds: string[] = [
-    ...mcpServerCustomizations.map(
-      (mcpServerCustomization) => mcpServerCustomization.mcpServerId,
-    ),
-    ...mcpToolCustomizations.map(
-      (mcpToolCustomization) => mcpToolCustomization.mcpServerId,
-    ),
-  ];
-
-  const prompts = Array.from(new Set(serverIds)).reduce(
-    (acc, serverId) => {
-      const sc = mcpServerCustomizations.find((v) => v.mcpServerId == serverId);
-      const tc = mcpToolCustomizations.filter(
-        (mcpToolCustomization) => mcpToolCustomization.mcpServerId === serverId,
-      );
-      const data: McpServerCustomizationsPrompt = {
-        name: sc?.serverName || tc[0]?.serverName || "",
-        id: serverId,
-        prompt: sc?.prompt || "",
-        tools: tc.reduce(
-          (acc, v) => {
-            acc[v.toolName] = v.prompt || "";
-            return acc;
-          },
-          {} as Record<string, string>,
-        ),
-      };
-      acc[serverId] = data;
-      return acc;
-    },
-    {} as Record<string, McpServerCustomizationsPrompt>,
-  );
-
-  serverCache.set(key, prompts, 1000 * 60 * 30); // 30 minutes
-  return prompts;
+  // TODO: Implement MCP customizations in gateway
+  return {};
 }

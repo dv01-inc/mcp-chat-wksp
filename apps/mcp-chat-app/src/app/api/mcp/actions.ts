@@ -106,28 +106,33 @@ export async function executeToolAction(serverId: string, toolName: string, para
   }
 }
 
-export async function queryServerAction(serverUrl: string, prompt: string, modelName?: string) {
+export async function queryServerAction(prompt: string, modelName?: string) {
   try {
+    // Gateway handles server selection automatically - no server_url needed!
     return await makeGatewayRequest('/mcp/query', 'POST', {
       prompt,
-      server_url: serverUrl,
-      model_name: modelName || 'gpt-4',
+      model_name: modelName || 'openai:gpt-4',
     });
   } catch (error) {
-    console.error('Failed to query server:', error);
+    console.error('Failed to query:', error);
     throw error;
   }
 }
 
-export async function chatWithServerAction(serverUrl: string, prompt: string, modelName?: string) {
+export async function chatWithServerAction(prompt: string, modelName?: string) {
   try {
+    // Gateway handles server selection automatically - no server_url needed!
     return await makeGatewayRequest('/mcp/chat', 'POST', {
       prompt,
-      server_url: serverUrl,
-      model_name: modelName || 'gpt-4',
+      model_name: modelName || 'openai:gpt-4',
     });
   } catch (error) {
-    console.error('Failed to chat with server:', error);
+    console.error('Failed to chat:', error);
     throw error;
   }
+}
+
+// Backward compatibility function for voice chat
+export async function callMcpToolByServerNameAction(serverId: string, toolName: string, parameters?: any) {
+  return executeToolAction(serverId, toolName, parameters);
 }

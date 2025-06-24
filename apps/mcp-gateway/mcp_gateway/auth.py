@@ -68,7 +68,7 @@ class MockAuth:
         """Mock token verification - accepts any token in development."""
         if token == "mock-token" or os.getenv("ENVIRONMENT") == "development":
             return {
-                "sub": "mock-user-id",
+                "sub": "550e8400-e29b-41d4-a716-446655440000",  # Mock UUID
                 "email": "mock@example.com",
                 "exp": datetime.utcnow() + timedelta(hours=1)
             }
