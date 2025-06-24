@@ -30,6 +30,8 @@
     "containers:restart": "nx run-many --target=container-restart",
     "containers:status": "nx run-many --target=container-status",
     "containers:logs": "nx run-many --target=container-logs",
+    "kong-helper:install": "nx run localhost-kong-helper:install",
+    "kong-helper:serve": "nx run localhost-kong-helper:serve",
     "prepare": "husky"
   },
   "devDependencies": {
