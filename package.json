@@ -35,6 +35,7 @@
     "dev:with-auth": "concurrently \"pnpm kong-helper:serve\" \"pnpm containers:up\" \"pnpm dev\"",
     "dev:full-stack": "concurrently \"pnpm kong-helper:serve\" \"pnpm containers:up\" \"pnpm playwright-mcp:serve\" \"pnpm apollo-mcp:serve\" \"pnpm dev\"",
     "setup": "git submodule update --init --remote --recursive && pnpm install && pnpm kong-helper:install && nx run-many --target=install --parallel && pnpm install-missing-deps && pnpm setup-env",
+    "setup:force": "git submodule update --init --remote --recursive --force && pnpm install --force && pnpm kong-helper:install && nx run-many --target=install --parallel && pnpm install-missing-deps && pnpm setup-env",
     "setup-env": "pnpm setup-env:ai-service && pnpm setup-env:kong-helper && pnpm setup-env:chat-app",
     "setup-env:ai-service": "cd apps/ai-service && cp -n .env.example .env || true",
     "setup-env:kong-helper": "cd tools/localhost-kong-helper/localhost-helper && cp -n example.env .env || true", 
