@@ -84,3 +84,9 @@ Thumbs.db
 # Submodule build outputs
 apps/playwright-mcp/lib/
 apps/playwright-mcp/node_modules/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
