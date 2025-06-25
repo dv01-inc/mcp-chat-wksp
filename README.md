@@ -39,6 +39,49 @@ This workspace demonstrates a complete **"dumb client"** architecture where:
 - Node.js 18+
 - Podman and Podman Compose (or Docker/Docker Compose)
 - pnpm (recommended) or npm
+- Git (for submodule management)
+
+### **📋 First Time Setup**
+
+If you're cloning this repo for the first time:
+
+```bash
+# Option 1: Clone with submodules (recommended)
+git clone --recurse-submodules https://github.com/your-org/mcp-chat-wksp
+cd mcp-chat-wksp
+pnpm quick-start
+
+# Option 2: Clone then setup
+git clone https://github.com/your-org/mcp-chat-wksp
+cd mcp-chat-wksp
+pnpm quick-start  # This will initialize submodules automatically
+```
+
+## **⚡ One Command Setup (Recommended)**
+
+```bash
+pnpm quick-start
+```
+
+This single command will:
+1. ✅ Initialize and update Git submodules (DV01 auth gateway)
+2. ✅ Install all workspace dependencies
+3. ✅ Install project-specific dependencies (Kong helper, AI service, etc.)
+4. ✅ Add missing Next.js dependencies (`next-intl`)
+5. ✅ Copy environment file templates (`.env.example` → `.env`)
+6. ✅ Start Kong helper + AI service containers + Next.js app
+
+### **🔄 For Latest Gateway Updates**
+
+```bash
+# Pull latest DV01 gateway changes
+git submodule update --remote
+
+# Or include in setup
+pnpm setup  # Always pulls latest gateway
+```
+
+## **🔧 Manual Setup (Alternative)**
 
 ### 1. Install Dependencies
 ```bash
@@ -197,7 +240,25 @@ pnpm containers:down
 pnpm containers:restart
 ```
 
-### DV01 Auth Development
+### Quick Commands
+```bash
+# 🚀 Complete setup and start (one command)
+pnpm quick-start
+
+# 🔧 Setup only (install deps + copy env files)
+pnpm setup
+
+# 🏁 Start everything (assumes setup is done)
+pnpm start:all
+
+# 🔑 Start with DV01 auth only
+pnpm dev:with-auth
+
+# 📚 Start full stack with all MCP servers
+pnpm dev:full-stack
+```
+
+### Individual Service Management
 ```bash
 # Install Kong helper dependencies
 pnpm kong-helper:install
@@ -205,11 +266,8 @@ pnpm kong-helper:install
 # Start Kong helper for auth simulation
 pnpm kong-helper:serve
 
-# Start with DV01 auth (recommended)
-pnpm dev:with-auth
-
-# Start full stack with all MCP servers
-pnpm dev:full-stack
+# Install all project dependencies at once
+nx run-many --target=install --parallel
 ```
 
 ### Application Development

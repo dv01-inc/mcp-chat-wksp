@@ -86,6 +86,13 @@
         "command": "tsc --noEmit",
         "cwd": "apps/mcp-chat-app"
       }
+    },
+    "install": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "pnpm install",
+        "cwd": "{projectRoot}"
+      }
     }
   },
   "tags": []

@@ -34,6 +34,18 @@
     "kong-helper:serve": "nx run localhost-kong-helper:serve",
     "dev:with-auth": "concurrently \"pnpm kong-helper:serve\" \"pnpm containers:up\" \"pnpm dev\"",
     "dev:full-stack": "concurrently \"pnpm kong-helper:serve\" \"pnpm containers:up\" \"pnpm playwright-mcp:serve\" \"pnpm apollo-mcp:serve\" \"pnpm dev\"",
+    "setup": "git submodule update --init --remote --recursive && pnpm install && nx run-many --target=install --parallel && pnpm install-missing-deps && pnpm setup-env",
+    "setup-env": "pnpm setup-env:ai-service && pnpm setup-env:kong-helper && pnpm setup-env:chat-app",
+    "setup-env:ai-service": "cd apps/ai-service && cp -n .env.example .env || true",
+    "setup-env:kong-helper": "cd tools/localhost-kong-helper && cp -n example.env .env || true", 
+    "setup-env:chat-app": "cd apps/mcp-chat-app && cp -n .env.local.example .env.local || true",
+    "start:all": "pnpm setup && pnpm dev:with-auth",
+    "install-missing-deps": "pnpm add next-intl --filter mcp-chat-app",
+    "quick-start": "pnpm setup && pnpm dev:with-auth",
+    "fresh-start": "pnpm containers:down && pnpm quick-start",
+    "update-gateway": "git submodule update --remote && echo '✅ Gateway updated to latest version'",
+    "gateway-status": "cd tools/localhost-kong-helper && git log --oneline -1 && echo '📍 Current gateway version'",
+    "clean": "pnpm containers:down && nx reset",
     "prepare": "husky"
   },
   "devDependencies": {
