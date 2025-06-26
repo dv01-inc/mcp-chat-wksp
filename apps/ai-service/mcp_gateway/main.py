@@ -33,7 +33,8 @@ from sqlalchemy.orm import Session
 
 from .mcp_client import MCPClient
 from .auth import verify_token, KongAuth
-from .database import get_db, ChatRepository, UserRepository, create_tables
+from .database import get_db, ChatRepository, UserRepository, MCPServerRepository, create_tables, SessionLocal
+from .mcp_manager import get_mcp_manager, initialize_default_servers
 
 # Load environment variables
 load_env_path = os.path.join(os.path.dirname(__file__), '..', '.env')
@@ -46,9 +47,13 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# Global MCP manager instance
+mcp_manager = None
+
 # Initialize database tables on startup
 @app.on_event("startup")
 async def startup_event():
+    global mcp_manager
     import time
     max_retries = 30
     retry_delay = 2
@@ -57,6 +62,12 @@ async def startup_event():
         try:
             create_tables()
             print("✅ Database tables created successfully")
+            
+            # Initialize MCP manager
+            mcp_manager = get_mcp_manager(SessionLocal)
+            await mcp_manager.initialize()
+            await initialize_default_servers(mcp_manager)
+            print("✅ MCP manager initialized successfully")
             
             # Create mock user for development
             if os.getenv("ENVIRONMENT") == "development":
@@ -117,41 +128,11 @@ def get_user_info(request: Request, credentials: Optional[HTTPAuthorizationCrede
     
     return verify_token(credentials.credentials)
 
-# Global MCP client instances
+# Legacy global MCP client instances - will be managed by DynamicMCPManager
 mcp_clients: Dict[str, MCPClient] = {}
 
-# Available MCP servers and their capabilities
-AVAILABLE_SERVERS = {
-    "playwright": {
-        "url": "http://localhost:8001/sse",
-        "transport": "sse",
-        "capabilities": [
-            "browser_automation", "web_navigation", "screenshot", "web_scraping", 
-            "click", "type", "form_filling", "page_interaction"
-        ],
-        "keywords": [
-            "browse", "navigate", "screenshot", "click", "type", "website", "page",
-            "browser", "web", "url", "link", "google", "github", "open", "visit",
-            "scrape", "extract", "element", "button", "form", "input"
-        ]
-    },
-    "apollo": {
-        "url": "http://localhost:5001/mcp", 
-        "transport": "http",
-        "capabilities": [
-            "space_data", "astronaut_info", "mission_details", "launch_info",
-            "celestial_bodies", "space_exploration"
-        ],
-        "keywords": [
-            "space", "astronaut", "mission", "launch", "nasa", "spacex",
-            "rocket", "satellite", "orbit", "celestial", "planet", "moon",
-            "mars", "station", "iss", "crew"
-        ]
-    }
-}
 
-
-def select_server_for_prompt(prompt: str) -> str:
+def select_server_for_prompt(prompt: str) -> Optional[str]:
     """Intelligently select the best MCP server based on the prompt content.
     
     This function analyzes the user's natural language prompt and automatically
@@ -161,43 +142,22 @@ def select_server_for_prompt(prompt: str) -> str:
         prompt: Natural language prompt from the user
         
     Returns:
-        Server ID of the best matching server
-        
-    Algorithm:
-        1. Convert prompt to lowercase for case-insensitive matching
-        2. Score each server based on keyword frequency
-        3. Return server with highest keyword match score
-        4. Default to "playwright" if no keywords match (general automation)
-        
-    Examples:
-        "Take a screenshot of google.com" → "playwright" (browser keywords)
-        "Who are the astronauts in space?" → "apollo" (space keywords)
-        "Help me with something" → "playwright" (default fallback)
+        Server ID of the best matching server, or None if no servers available
     """
-    prompt_lower = prompt.lower()
+    global mcp_manager
+    if not mcp_manager:
+        return None
     
-    # Score each server based on keyword matches
-    server_scores = {}
-    for server_id, server_info in AVAILABLE_SERVERS.items():
-        score = 0
-        for keyword in server_info["keywords"]:
-            if keyword in prompt_lower:
-                score += 1
-        server_scores[server_id] = score
-    
-    # Find the server with the highest score
-    best_server = max(server_scores.items(), key=lambda x: x[1])
-    
-    # If no keywords match, default to playwright (most general)
-    if best_server[1] == 0:
-        return "playwright"
-    
-    return best_server[0]
+    return mcp_manager.select_server_for_prompt(prompt)
 
 
-def get_server_url(server_id: str) -> str:
+def get_server_url(server_id: str) -> Optional[str]:
     """Get the URL for a given server ID."""
-    return AVAILABLE_SERVERS.get(server_id, {}).get("url", "http://localhost:8001/sse")
+    global mcp_manager
+    if not mcp_manager:
+        return None
+    
+    return mcp_manager.get_server_url(server_id)
 
 
 class MCPRequest(BaseModel):
@@ -249,6 +209,10 @@ async def root():
             "health": "/health",
             "chat": "/mcp/chat",
             "servers": "/mcp/servers",
+            "tools": "/mcp/tools",
+            "create_server": "POST /mcp/servers",
+            "update_server": "PUT /mcp/servers/{id}",
+            "delete_server": "DELETE /mcp/servers/config/{id}",
             "threads": "/chat/threads"
         }
     }
@@ -261,12 +225,23 @@ async def health():
     Returns the current health status of the AI service.
     Used by Docker health checks and monitoring systems.
     """
+    global mcp_manager
+    servers_info = "not_initialized"
+    if mcp_manager:
+        enabled_servers = mcp_manager.get_enabled_servers()
+        servers_info = {
+            "total": len(mcp_manager.get_all_servers()),
+            "enabled": len(enabled_servers),
+            "names": [info.get("name", "unknown") for info in enabled_servers.values()]
+        }
+    
     return {
         "status": "healthy", 
         "service": "ai-service",
-        "timestamp": "2025-06-24T03:56:00Z",
+        "timestamp": "2025-06-26T00:00:00Z",
         "database": "connected",
-        "servers": list(AVAILABLE_SERVERS.keys())
+        "mcp_manager": "initialized" if mcp_manager else "not_initialized",
+        "servers": servers_info
     }
 
 
@@ -504,7 +479,13 @@ async def intelligent_mcp_chat(
         # 🧠 INTELLIGENT SERVER SELECTION
         # AI Service analyzes the prompt and selects the best server automatically
         selected_server_id = select_server_for_prompt(mcp_request.prompt)
+        
+        if not selected_server_id:
+            raise HTTPException(status_code=503, detail="No MCP servers available")
+        
         server_url = get_server_url(selected_server_id)
+        if not server_url:
+            raise HTTPException(status_code=404, detail=f"Server {selected_server_id} not found")
         
         print(f"🧠 Intelligent routing: '{mcp_request.prompt}' → {selected_server_id} server")
         
@@ -530,28 +511,42 @@ async def intelligent_mcp_chat(
                 annotations=[]
             )
         
-        # Create MCP client key based on selected server
-        client_key = f"{server_url}:{user_id}"
+        # Get server info for enhanced system prompt
+        global mcp_manager
+        server_info = mcp_manager.get_server(selected_server_id) if mcp_manager else {}
+        server_capabilities = server_info.get("capabilities", [])
         
-        # Get or create MCP client for the selected server
-        if client_key not in mcp_clients:
-            # Enhanced system prompt for intelligent behavior
-            enhanced_system_prompt = (
-                "You are an intelligent assistant with access to specialized tools. "
-                "Always use the available tools when they can help fulfill the user's request. "
-                "For browser tasks: navigate, take screenshots, interact with elements as needed. "
-                "For space queries: fetch real astronaut data, mission info, or celestial details. "
-                "Provide clear, helpful responses based on the tool results. "
-                f"Current capabilities: {AVAILABLE_SERVERS[selected_server_id]['capabilities']}"
-            )
-            
-            mcp_clients[client_key] = MCPClient(
-                model_name=mcp_request.model_name,
-                mcp_server_url=server_url,
-                system_prompt=mcp_request.system_prompt or enhanced_system_prompt
-            )
+        # Enhanced system prompt for intelligent behavior
+        enhanced_system_prompt = (
+            "You are an intelligent assistant with access to specialized tools. "
+            "Always use the available tools when they can help fulfill the user's request. "
+            "For browser tasks: navigate, take screenshots, interact with elements as needed. "
+            "For space queries: fetch real astronaut data, mission info, or celestial details. "
+            "Provide clear, helpful responses based on the tool results. "
+            f"Current capabilities: {server_capabilities}"
+        )
         
-        client = mcp_clients[client_key]
+        # Get or create MCP client for the selected server using the manager
+        if mcp_manager:
+            client = await mcp_manager.get_or_create_client(
+                selected_server_id, 
+                user_id, 
+                mcp_request.model_name,
+                mcp_request.system_prompt or enhanced_system_prompt
+            )
+        else:
+            # Fallback to legacy client management
+            client_key = f"{server_url}:{user_id}"
+            if client_key not in mcp_clients:
+                mcp_clients[client_key] = MCPClient(
+                    model_name=mcp_request.model_name,
+                    mcp_server_url=server_url,
+                    system_prompt=mcp_request.system_prompt or enhanced_system_prompt
+                )
+            client = mcp_clients[client_key]
+        
+        if not client:
+            raise HTTPException(status_code=503, detail=f"Unable to connect to server {selected_server_id}")
         
         # Set authentication headers
         headers = {
@@ -573,7 +568,7 @@ async def intelligent_mcp_chat(
                     "completion_tokens": usage_obj.response_tokens if hasattr(usage_obj, 'response_tokens') else None,
                     "total_tokens": usage_obj.total_tokens if hasattr(usage_obj, 'total_tokens') else None,
                     "selected_server": selected_server_id,
-                    "server_capabilities": AVAILABLE_SERVERS[selected_server_id]['capabilities']
+                    "server_capabilities": server_capabilities
                 }
             except:
                 usage_info = {"selected_server": selected_server_id}
@@ -624,61 +619,43 @@ async def list_mcp_servers(
     try:
         # Verify the JWT token
         user_info = verify_token(credentials.credentials)
-        
-        # Define available MCP servers with their capabilities
-        available_servers = [
-            {
-                "id": "playwright",
-                "name": "Playwright Browser Automation",
-                "description": "Browser automation tools for web scraping, testing, and interaction",
-                "server_url": "http://localhost:8001/sse",
-                "status": "available",
-                "transport": "sse",
-                "capabilities": [
-                    "browser_navigation", "web_scraping", "ui_testing", 
-                    "screenshot_capture", "form_automation"
-                ],
-                "tools": [
-                    "browser_navigate", "browser_click", "browser_type", 
-                    "browser_screenshot", "browser_wait_for", "browser_extract_text"
-                ]
-            },
-            {
-                "id": "apollo",
-                "name": "Apollo Space Data",
-                "description": "Access to space mission data, astronaut information, and celestial body details",
-                "server_url": "http://localhost:5001/mcp",
-                "status": "available",
-                "transport": "http",
-                "capabilities": [
-                    "space_data", "mission_tracking", "astronaut_info", 
-                    "celestial_bodies", "launch_schedules"
-                ],
-                "tools": [
-                    "get_astronaut_details", "search_upcoming_launches",
-                    "get_astronauts_currently_in_space", "explore_celestial_bodies"
-                ]
-            }
-        ]
-        
-        # Check which servers the user has active sessions with
         user_id = user_info.get("sub", "anonymous")
-        active_sessions = []
         
+        global mcp_manager
+        if not mcp_manager:
+            raise HTTPException(status_code=500, detail="MCP manager not initialized")
+        
+        # Get all servers from dynamic manager
+        all_servers = mcp_manager.get_all_servers()
+        available_servers = []
+        
+        for server_id, server_info in all_servers.items():
+            server_data = {
+                "id": server_id,
+                "name": server_info.get("name", "Unknown"),
+                "description": server_info.get("description", ""),
+                "server_url": server_info.get("url", ""),
+                "status": "available" if server_info.get("enabled", True) else "disabled",
+                "transport": server_info.get("transport", "http"),
+                "capabilities": server_info.get("capabilities", []),
+                "tools": server_info.get("tools", []),
+                "keywords": server_info.get("keywords", []),
+                "enabled": server_info.get("enabled", True)
+            }
+            available_servers.append(server_data)
+        
+        # Check which servers have active client connections
+        active_sessions = 0
         for client_key in mcp_clients:
             if client_key.endswith(f":{user_id}"):
-                server_url = client_key.split(f":{user_id}")[0]
-                active_sessions.append(server_url)
-        
-        # Mark servers as connected if user has active sessions
-        for server in available_servers:
-            if server["server_url"] in active_sessions:
-                server["status"] = "connected"
+                active_sessions += 1
         
         return {
             "servers": available_servers,
             "user_id": user_id,
-            "active_sessions": len(active_sessions)
+            "active_sessions": active_sessions,
+            "total_servers": len(available_servers),
+            "enabled_servers": len([s for s in available_servers if s["enabled"]])
         }
         
     except Exception as e:
@@ -770,16 +747,210 @@ async def disconnect_mcp_server(
         user_info = verify_token(credentials.credentials)
         user_id = user_info.get("sub", "anonymous")
         
-        # Find and remove the client
+        global mcp_manager
+        if mcp_manager:
+            await mcp_manager.disconnect_client(server_id, user_id)
+        
+        # Also clean up legacy clients
         client_key = f"{server_id}:{user_id}"
         if client_key in mcp_clients:
             del mcp_clients[client_key]
-            return {"message": f"Disconnected from server {server_id}"}
-        else:
-            raise HTTPException(status_code=404, detail="Server not found")
+        
+        return {"message": f"Disconnected from server {server_id}"}
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to disconnect: {str(e)}")
+
+
+# New Dynamic MCP Server Management Endpoints
+
+class MCPServerCreateRequest(BaseModel):
+    """Request model for creating an MCP server."""
+    name: str
+    url: str
+    transport: Optional[str] = "http"
+    description: Optional[str] = ""
+    capabilities: Optional[List[str]] = []
+    keywords: Optional[List[str]] = []
+    tools: Optional[List[str]] = []
+    auth: Optional[Dict[str, str]] = None
+
+
+class MCPServerUpdateRequest(BaseModel):
+    """Request model for updating an MCP server."""
+    name: Optional[str] = None
+    url: Optional[str] = None
+    transport: Optional[str] = None
+    description: Optional[str] = None
+    capabilities: Optional[List[str]] = None
+    keywords: Optional[List[str]] = None
+    tools: Optional[List[str]] = None
+    enabled: Optional[bool] = None
+    auth: Optional[Dict[str, str]] = None
+
+
+@app.post("/mcp/servers")
+async def create_mcp_server(
+    request: MCPServerCreateRequest,
+    credentials: HTTPAuthorizationCredentials = Security(security)
+):
+    """Create a new MCP server configuration."""
+    try:
+        # Verify the JWT token
+        user_info = verify_token(credentials.credentials)
+        
+        global mcp_manager
+        if not mcp_manager:
+            raise HTTPException(status_code=500, detail="MCP manager not initialized")
+        
+        # Build config object
+        config = {
+            "url": request.url,
+            "transport": request.transport,
+            "description": request.description,
+            "capabilities": request.capabilities,
+            "keywords": request.keywords,
+            "tools": request.tools
+        }
+        
+        if request.auth:
+            config["auth"] = request.auth
+        
+        # Add server
+        server_id = await mcp_manager.add_server(request.name, config)
+        
+        return {
+            "id": server_id,
+            "name": request.name,
+            "message": f"MCP server '{request.name}' created successfully",
+            "config": config
+        }
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to create server: {str(e)}")
+
+
+@app.put("/mcp/servers/{server_id}")
+async def update_mcp_server(
+    server_id: str,
+    request: MCPServerUpdateRequest,
+    credentials: HTTPAuthorizationCredentials = Security(security)
+):
+    """Update an MCP server configuration."""
+    try:
+        # Verify the JWT token
+        user_info = verify_token(credentials.credentials)
+        
+        global mcp_manager
+        if not mcp_manager:
+            raise HTTPException(status_code=500, detail="MCP manager not initialized")
+        
+        # Build updates
+        updates = {}
+        
+        # Handle individual field updates
+        if request.name is not None:
+            updates["name"] = request.name
+        if request.enabled is not None:
+            updates["enabled"] = request.enabled
+        
+        # Handle config updates
+        config_updates = {}
+        if request.url is not None:
+            config_updates["url"] = request.url
+        if request.transport is not None:
+            config_updates["transport"] = request.transport
+        if request.description is not None:
+            config_updates["description"] = request.description
+        if request.capabilities is not None:
+            config_updates["capabilities"] = request.capabilities
+        if request.keywords is not None:
+            config_updates["keywords"] = request.keywords
+        if request.tools is not None:
+            config_updates["tools"] = request.tools
+        if request.auth is not None:
+            config_updates["auth"] = request.auth
+        
+        # Get current config and merge updates
+        if config_updates:
+            server_info = mcp_manager.get_server(server_id)
+            if not server_info:
+                raise HTTPException(status_code=404, detail="Server not found")
+            
+            current_config = server_info.get("config", {})
+            new_config = {**current_config, **config_updates}
+            updates["config"] = new_config
+        
+        # Update server
+        success = await mcp_manager.update_server(server_id, **updates)
+        
+        if not success:
+            raise HTTPException(status_code=404, detail="Server not found")
+        
+        return {
+            "id": server_id,
+            "message": "MCP server updated successfully",
+            "updates": updates
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update server: {str(e)}")
+
+
+@app.delete("/mcp/servers/config/{server_id}")
+async def delete_mcp_server(
+    server_id: str,
+    credentials: HTTPAuthorizationCredentials = Security(security)
+):
+    """Delete an MCP server configuration."""
+    try:
+        # Verify the JWT token
+        user_info = verify_token(credentials.credentials)
+        
+        global mcp_manager
+        if not mcp_manager:
+            raise HTTPException(status_code=500, detail="MCP manager not initialized")
+        
+        # Remove server
+        success = await mcp_manager.remove_server(server_id)
+        
+        if not success:
+            raise HTTPException(status_code=404, detail="Server not found")
+        
+        return {"message": f"MCP server {server_id} deleted successfully"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to delete server: {str(e)}")
+
+
+@app.get("/mcp/tools")
+async def list_mcp_tools(
+    credentials: HTTPAuthorizationCredentials = Security(security)
+):
+    """List all available tools from all MCP servers."""
+    try:
+        # Verify the JWT token
+        user_info = verify_token(credentials.credentials)
+        
+        global mcp_manager
+        if not mcp_manager:
+            raise HTTPException(status_code=500, detail="MCP manager not initialized")
+        
+        tools = mcp_manager.get_available_tools()
+        
+        return {
+            "tools": tools,
+            "total_tools": len(tools)
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to list tools: {str(e)}")
 
 
 # Chat History Management Endpoints

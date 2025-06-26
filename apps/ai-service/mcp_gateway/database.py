@@ -353,3 +353,66 @@ class UserRepository:
         self.db.commit()
         self.db.refresh(user)
         return user
+
+
+class MCPServerRepository:
+    """Repository for MCP server operations."""
+    
+    def __init__(self, db: Session):
+        self.db = db
+    
+    def get_all_servers(self) -> List[MCPServer]:
+        """Get all MCP servers."""
+        return self.db.query(MCPServer).filter(MCPServer.enabled == True).all()
+    
+    def get_server_by_id(self, server_id: str) -> Optional[MCPServer]:
+        """Get MCP server by ID."""
+        return self.db.query(MCPServer).filter(MCPServer.id == server_id).first()
+    
+    def get_server_by_name(self, name: str) -> Optional[MCPServer]:
+        """Get MCP server by name."""
+        return self.db.query(MCPServer).filter(MCPServer.name == name).first()
+    
+    def create_server(self, name: str, config: Dict[str, Any], enabled: bool = True) -> MCPServer:
+        """Create a new MCP server configuration."""
+        server = MCPServer(
+            name=name,
+            config=config,
+            enabled=enabled
+        )
+        self.db.add(server)
+        self.db.commit()
+        self.db.refresh(server)
+        return server
+    
+    def update_server(self, server_id: str, **updates) -> Optional[MCPServer]:
+        """Update an MCP server configuration."""
+        server = self.get_server_by_id(server_id)
+        if not server:
+            return None
+        
+        for key, value in updates.items():
+            if hasattr(server, key):
+                setattr(server, key, value)
+        
+        self.db.commit()
+        self.db.refresh(server)
+        return server
+    
+    def delete_server(self, server_id: str) -> bool:
+        """Delete an MCP server configuration."""
+        server = self.get_server_by_id(server_id)
+        if not server:
+            return False
+        
+        self.db.delete(server)
+        self.db.commit()
+        return True
+    
+    def enable_server(self, server_id: str) -> bool:
+        """Enable an MCP server."""
+        return self.update_server(server_id, enabled=True) is not None
+    
+    def disable_server(self, server_id: str) -> bool:
+        """Disable an MCP server."""
+        return self.update_server(server_id, enabled=False) is not None
