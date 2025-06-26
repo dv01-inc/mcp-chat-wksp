@@ -1,0 +1,91 @@
+{
+  "name": "chat-api",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/chat-api/src",
+  "projectType": "application",
+  "tags": ["type:api", "scope:chat", "platform:node"],
+  "targets": {
+    "dev": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsx watch src/main.ts",
+        "cwd": "apps/chat-api"
+      }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc",
+        "cwd": "apps/chat-api"
+      },
+      "outputs": ["{projectRoot}/dist"],
+      "dependsOn": ["^build"]
+    },
+    "start": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node dist/main.js",
+        "cwd": "apps/chat-api"
+      },
+      "dependsOn": ["build"]
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "vitest run",
+        "cwd": "apps/chat-api"
+      }
+    },
+    "test:watch": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "vitest",
+        "cwd": "apps/chat-api"
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "eslint src --ext ts",
+        "cwd": "apps/chat-api"
+      }
+    },
+    "lint:fix": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "eslint src --ext ts --fix",
+        "cwd": "apps/chat-api"
+      }
+    },
+    "format": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "prettier --write src",
+        "cwd": "apps/chat-api"
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc --noEmit",
+        "cwd": "apps/chat-api"
+      }
+    },
+    "container": {
+      "executor": "@nx-tools/nx-container:build",
+      "options": {
+        "engine": "docker",
+        "metadata": {
+          "images": ["chat-api"],
+          "tags": [
+            "type=schedule",
+            "type=ref,event=branch",
+            "type=ref,event=tag",
+            "type=ref,event=pr",
+            "type=sha,prefix=sha-"
+          ]
+        }
+      }
+    }
+  }
+}
