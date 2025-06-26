@@ -10,8 +10,26 @@ import { chatRoutes } from './routes/chat.js';
 import { mcpRoutes } from './routes/mcp.js';
 import { threadRoutes } from './routes/thread.js';
 import { userRoutes } from './routes/user.js';
+import { createMCPClientsManager, DatabaseMCPStorage } from './lib/mcp-manager.js';
 
 const app = express();
+
+// Initialize MCP manager
+const mcpStorage = new DatabaseMCPStorage();
+const mcpManager = createMCPClientsManager(mcpStorage);
+
+// Make MCP manager available to routes
+app.locals.mcpManager = mcpManager;
+
+// Initialize MCP manager
+async function initializeMCPManager() {
+  try {
+    await mcpManager.init();
+    console.log('✅ MCP Manager initialized successfully');
+  } catch (error) {
+    console.error('❌ Failed to initialize MCP Manager:', error);
+  }
+}
 
 // Security middleware
 app.use(helmet());
@@ -49,9 +67,12 @@ app.use('*', (req, res) => {
 
 const port = config.PORT || 3001;
 
-app.listen(port, () => {
+app.listen(port, async () => {
   console.log(`🚀 Chat API server running on port ${port}`);
   console.log(`📡 Health check: http://localhost:${port}/health`);
+  
+  // Initialize MCP manager after server starts
+  await initializeMCPManager();
 });
 
 export default app;

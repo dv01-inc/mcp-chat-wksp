@@ -59,7 +59,7 @@ def create_access_token(data: Dict[str, Any], expires_delta: timedelta = None) -
         expire = datetime.utcnow() + expires_delta
     else:
         expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    
+
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
@@ -72,22 +72,22 @@ def verify_token(token: str) -> Dict[str, Any]:
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    
+
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id: str = payload.get("sub")
         if user_id is None:
             raise credentials_exception
-        
+
         return payload
-        
+
     except JWTError:
         raise credentials_exception
 
 
 class MockAuth:
     """Mock authentication for development/testing."""
-    
+
     @staticmethod
     def verify_token(token: str) -> Dict[str, Any]:
         """Mock token verification - accepts any token in development."""
@@ -95,7 +95,7 @@ class MockAuth:
             return {
                 "sub": "550e8400-e29b-41d4-a716-446655440000",  # Mock UUID
                 "email": "mock@example.com",
-                "exp": datetime.utcnow() + timedelta(hours=1)
+                "exp": datetime.utcnow() + timedelta(hours=1),
             }
         else:
             return verify_token(token)
@@ -103,26 +103,29 @@ class MockAuth:
 
 class KongAuth:
     """Kong gateway authentication for DV01 integration."""
-    
+
     @staticmethod
     def extract_user_from_headers(headers: Dict[str, str]) -> Dict[str, Any]:
         """Extract user info from Kong headers."""
         current_user = headers.get("currentuser")
-        access_token = headers.get("accesstoken") 
+        access_token = headers.get("accesstoken")
         current_org = headers.get("currentorg")
-        
+
         if current_user:
             # Parse currentuser header (usually base64 encoded JSON)
             try:
                 import json
                 import base64
+
                 user_data = json.loads(base64.b64decode(current_user).decode())
                 return {
-                    "sub": user_data.get("id") or user_data.get("sub") or user_data.get("userId"),
+                    "sub": user_data.get("id")
+                    or user_data.get("sub")
+                    or user_data.get("userId"),
                     "email": user_data.get("email"),
                     "name": user_data.get("name") or user_data.get("fullName"),
                     "org": current_org,
-                    "access_token": access_token
+                    "access_token": access_token,
                 }
             except Exception:
                 # Fallback if header format is different - treat as plain user ID
@@ -131,9 +134,9 @@ class KongAuth:
                     "email": f"{current_user}@dv01.co",
                     "name": current_user,
                     "org": current_org,
-                    "access_token": access_token
+                    "access_token": access_token,
                 }
-        
+
         return None
 
 
@@ -148,5 +151,5 @@ def create_user_headers(user_info: Dict[str, Any]) -> Dict[str, str]:
         "X-User-ID": user_info.get("sub", "anonymous"),
         "X-User-Email": user_info.get("email", ""),
         "X-User-Name": user_info.get("name", ""),
-        "Authorization": f"Bearer {user_info.get('token', '')}"
+        "Authorization": f"Bearer {user_info.get('token', '')}",
     }

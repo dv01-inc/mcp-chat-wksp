@@ -1,0 +1,1 @@
+export { chatRepository } from '../db/repositories/chat-repository.js';

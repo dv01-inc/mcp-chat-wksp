@@ -1,74 +1,82 @@
 {
-  "name": "mcp-chat-workspace",
-  "version": "1.9.0",
-  "license": "MIT",
-  "private": true,
-  "author": "cgoinglove",
-  "packageManager": "pnpm@10.2.1",
-  "engines": {
-    "node": ">=18"
-  },
-  "scripts": {
-    "dev": "nx run mcp-chat-app:dev",
-    "build": "nx run mcp-chat-app:build",
-    "start": "nx run mcp-chat-app:start",
-    "test": "nx run-many --target=test",
-    "lint": "nx run-many --target=lint",
-    "format": "nx run-many --target=format",
-    "check-types": "nx run-many --target=check-types",
-    "ai-service:serve": "nx run ai-service:serve",
-    "ai-service:test": "nx run ai-service:test",
-    "containers:up": "nx run-many --target=container-up",
-    "containers:down": "nx run-many --target=container-down",
-    "containers:restart": "nx run-many --target=container-restart",
-    "containers:status": "nx run-many --target=container-status",
-    "containers:logs": "nx run-many --target=container-logs",
-    "kong-helper:install": "cd apps/localhost-kong-helper/localhost-helper && npm install",
-    "kong-helper:serve": "cd apps/localhost-kong-helper/localhost-helper && npm start",
-    "dev:with-auth": "concurrently \"pnpm kong-helper:serve\" \"pnpm containers:up\" \"pnpm dev\"",
-    "dev:full-stack": "concurrently \"pnpm kong-helper:serve\" \"pnpm containers:up\" \"pnpm playwright-mcp:serve\" \"pnpm apollo-mcp:serve\" \"pnpm dev\"",
-    "setup": "git submodule update --init --remote --recursive && pnpm install && pnpm kong-helper:install && nx run-many --target=install --parallel && pnpm install-missing-deps && pnpm setup-env",
-    "setup:force": "git submodule update --init --remote --recursive --force && pnpm install --force && pnpm kong-helper:install && nx run-many --target=install --parallel && pnpm install-missing-deps && pnpm setup-env",
-    "setup-env": "pnpm setup-env:ai-service && pnpm setup-env:kong-helper && pnpm setup-env:chat-app",
-    "setup-env:ai-service": "cd apps/ai-service && cp -n .env.example .env || true",
-    "setup-env:kong-helper": "cd apps/localhost-kong-helper/localhost-helper && cp -n example.env .env || true",
-    "setup-env:chat-app": "cd apps/mcp-chat-app && cp -n .env.local.example .env.local || true",
-    "start:all": "pnpm setup && pnpm dev:with-auth",
-    "install-missing-deps": "pnpm install --filter mcp-chat-app && pnpm add next-intl --filter mcp-chat-app",
-    "quick-start": "pnpm setup && pnpm dev:with-auth",
-    "fresh-start": "pnpm containers:down && pnpm quick-start",
-    "containers:clean": "pnpm containers:down && podman system prune -f",
-    "update-gateway": "git submodule update --remote && echo '✅ Gateway updated to latest version'",
-    "gateway-status": "cd apps/localhost-kong-helper && git log --oneline -1 && echo '📍 Current gateway version'",
-    "clean": "pnpm containers:down && nx reset",
-    "prepare": "husky"
-  },
-  "devDependencies": {
-    "@nx-tools/nx-container": "^6.8.0",
-    "@nx/js": "21.2.1",
-    "@nx/next": "21.2.1",
-    "@nx/workspace": "21.2.1",
-    "@nxlv/python": "^21.0.3",
-    "@nxrocks/nx-spring-boot": "^11.0.1",
-    "concurrently": "^8.2.2",
-    "husky": "^9.1.7",
-    "lint-staged": "^16.1.0",
-    "nx": "21.2.1",
-    "rimraf": "^6.0.1"
-  },
-  "lint-staged": {
-    "*.{js,json,mjs,ts,yaml,tsx,css}": [
-      "nx affected --target=format --uncommitted",
-      "nx affected --target=lint --uncommitted --fix"
-    ]
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "@biomejs/biome",
-      "@tailwindcss/oxide",
-      "esbuild",
-      "sharp",
-      "unrs-resolver"
-    ]
-  }
+    "name": "mcp-chat-workspace",
+    "version": "1.9.0",
+    "license": "MIT",
+    "private": true,
+    "author": "cgoinglove",
+    "packageManager": "pnpm@10.2.1",
+    "engines": {"node": ">=18"},
+    "scripts": {
+        "dev": "nx run mcp-chat-app:dev",
+        "build": "nx run mcp-chat-app:build",
+        "start": "nx run mcp-chat-app:start",
+        "chat-api:dev": "cd apps/chat-api && npm run dev",
+        "chat-api:build": "nx build chat-api",
+        "chat-api:start": "cd apps/chat-api && npm start",
+        "chat:dev": "cd apps/chat && npm run dev",
+        "chat:build": "nx build chat",
+        "chat:start": "cd apps/chat && npm start",
+        "dev:chat-stack": "concurrently \"pnpm chat-api:dev\" \"pnpm chat:dev\"",
+        "test": "nx run-many --target=test",
+        "lint": "nx run-many --target=lint",
+        "format": "nx run-many --target=format",
+        "check-types": "nx run-many --target=check-types",
+        "ai-service:serve": "nx run ai-service:serve",
+        "ai-service:test": "nx run ai-service:test",
+        "containers:up": "nx run-many --target=container-up",
+        "containers:down": "nx run-many --target=container-down",
+        "containers:restart": "nx run-many --target=container-restart",
+        "containers:status": "nx run-many --target=container-status",
+        "containers:logs": "nx run-many --target=container-logs",
+        "kong-helper:install": "cd apps/localhost-kong-helper/localhost-helper && npm install",
+        "kong-helper:serve": "cd apps/localhost-kong-helper/localhost-helper && npm start",
+        "dev:with-auth": "concurrently \"pnpm kong-helper:serve\" \"pnpm containers:up\" \"pnpm dev\"",
+        "dev:full-stack": "concurrently \"pnpm kong-helper:serve\" \"pnpm containers:up\" \"pnpm playwright-mcp:serve\" \"pnpm apollo-mcp:serve\" \"pnpm dev\"",
+        "setup": "./setup.sh",
+        "setup:full": "git submodule update --init --remote --recursive && pnpm install && pnpm kong-helper:install && nx run-many --target=install --parallel && pnpm install-missing-deps && pnpm setup-env",
+        "setup:force": "git submodule update --init --remote --recursive --force && pnpm install --force && pnpm kong-helper:install && nx run-many --target=install --parallel && pnpm install-missing-deps && pnpm setup-env",
+        "setup-env": "pnpm setup-env:ai-service && pnpm setup-env:kong-helper && pnpm setup-env:chat-app && pnpm setup-env:chat-api",
+        "setup-env:ai-service": "cd apps/ai-service && cp -n .env.example .env || true",
+        "setup-env:kong-helper": "cd apps/localhost-kong-helper/localhost-helper && cp -n example.env .env || true",
+        "setup-env:chat-app": "cd apps/mcp-chat-app && cp -n .env.local.example .env.local || true",
+        "setup-env:chat-api": "cd apps/chat-api && cp -n .env.example .env || true",
+        "start:all": "pnpm setup && pnpm dev:with-auth",
+        "install-missing-deps": "pnpm install --filter mcp-chat-app && pnpm add next-intl --filter mcp-chat-app",
+        "quick-start": "pnpm setup && pnpm dev:with-auth",
+        "fresh-start": "pnpm containers:down && pnpm quick-start",
+        "containers:clean": "pnpm containers:down && podman system prune -f",
+        "update-gateway": "git submodule update --remote && echo '✅ Gateway updated to latest version'",
+        "gateway-status": "cd apps/localhost-kong-helper && git log --oneline -1 && echo '📍 Current gateway version'",
+        "clean": "pnpm containers:down && nx reset",
+        "prepare": "husky"
+    },
+    "devDependencies": {
+        "@nx-tools/nx-container": "^6.8.0",
+        "@nx/js": "21.2.1",
+        "@nx/next": "21.2.1",
+        "@nx/workspace": "21.2.1",
+        "@nxlv/python": "^21.0.3",
+        "@nxrocks/nx-spring-boot": "^11.0.1",
+        "concurrently": "^8.2.2",
+        "husky": "^9.1.7",
+        "lint-staged": "^16.1.0",
+        "nx": "21.2.1",
+        "rimraf": "^6.0.1"
+    },
+    "lint-staged": {
+        "*.{js,json,mjs,ts,yaml,tsx,css}": [
+            "nx affected --target=format --uncommitted",
+            "nx affected --target=lint --uncommitted --fix"
+        ]
+    },
+    "pnpm": {
+        "onlyBuiltDependencies": [
+            "@biomejs/biome",
+            "@tailwindcss/oxide",
+            "esbuild",
+            "sharp",
+            "unrs-resolver"
+        ]
+    }
 }
+

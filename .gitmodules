@@ -1,3 +1,0 @@
-[submodule "tools/localhost-kong-helper"]
-	path = tools/localhost-kong-helper
-	url = https://github.com/dv01-inc/dv01-shell-api-gateway.git
